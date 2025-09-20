@@ -1,25 +1,50 @@
 package main
 
 import (
-    "fmt"
-    "net/http"
+	"fmt"
+	"net/http"
+	"github.com/gorilla/websocket"
 )
 
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true }, // CORS対策
+}
+
+var clients = make(map[*websocket.Conn]bool)
+var broadcast = make(chan string)
+
+func handleConnections(w http.ResponseWriter, r *http.Request) {
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer ws.Close()
+	clients[ws] = true
+
+	for {
+		var msg string
+		err := ws.ReadJSON(&msg)
+		if err != nil {
+			delete(clients, ws)
+			break
+		}
+		broadcast <- msg
+	}
+}
+
+func handleMessages() {
+	for {
+		msg := <-broadcast
+		for client := range clients {
+			client.WriteJSON(msg)
+		}
+	}
+}
+
 func main() {
-    http.HandleFunc("/api/ping", func(w http.ResponseWriter, r *http.Request) {
-        // CORS 許可
-        w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-        w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-        w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-        if r.Method == "OPTIONS" {
-            w.WriteHeader(http.StatusOK)
-            return
-        }
-
-        fmt.Fprintln(w, "pong")
-    })
-
-    fmt.Println("Go server running on http://localhost:8080")
-    http.ListenAndServe(":8080", nil)
+	http.HandleFunc("/ws", handleConnections)
+	go handleMessages()
+	fmt.Println("Go WebSocket server running on :8080")
+	http.ListenAndServe(":8080", nil)
 }
