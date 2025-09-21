@@ -1,23 +1,20 @@
-import logo from './logo.svg';
-import './App.css';
+import { useEffect, useState } from "react";
+import SudokuBoard from "./SudokuBoard";
 
 function App() {
+  const [ws, setWs] = useState(null);
+
+  useEffect(() => {
+    const socket = new WebSocket("ws://localhost:8080/ws");
+    setWs(socket);
+
+    return () => socket.close();
+  }, []);
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div>
+      <h1>リアルタイムナンプレ</h1>
+      <SudokuBoard ws={ws} />
     </div>
   );
 }

@@ -13,6 +13,7 @@ var upgrader = websocket.Upgrader{
 var clients = make(map[*websocket.Conn]bool)
 var broadcast = make(chan string)
 
+// WebSocket 接続の処理
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -33,6 +34,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// メッセージをブロードキャスト
 func handleMessages() {
 	for {
 		msg := <-broadcast
@@ -43,8 +45,17 @@ func handleMessages() {
 }
 
 func main() {
+	// WebSocket ハンドラー
 	http.HandleFunc("/ws", handleConnections)
+
+	// HTTP ルート "/" ハンドラー
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "Go server is running!")
+	})
+
+	// メッセージブロードキャストをゴルーチンで起動
 	go handleMessages()
+
 	fmt.Println("Go WebSocket server running on :8080")
 	http.ListenAndServe(":8080", nil)
 }
