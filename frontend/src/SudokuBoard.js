@@ -1,29 +1,39 @@
 import { useState, useEffect } from "react";
 
-export default function SudokuBoard({ ws }) {
-  // 9x9 の空盤面を初期化
+export default function SudokuBoard({ ws, puzzle, solution }) {
   const [board, setBoard] = useState(
-    Array(9).fill(null).map(() => Array(9).fill(""))
+    puzzle.map(row => row.map(cell => (cell === 0 ? "" : cell)))
   );
+  const [statusBoard, setStatusBoard] = useState(
+    puzzle.map(row => row.map(cell => (cell === 0 ? "empty" : "fixed")))
+  );
+  const [selectedNumber, setSelectedNumber] = useState(null);
 
-  const [selectedNumber, setSelectedNumber] = useState(null); // 選択中の数字
-
-  // セルクリック処理
   const handleCellClick = (r, c) => {
-    if (selectedNumber !== null) {
-      setBoard(prev => {
-        const newBoard = prev.map(row => [...row]);
-        newBoard[r][c] = selectedNumber;
-        return newBoard;
-      });
+    if (selectedNumber === null) return;
+    if (statusBoard[r][c] === "fixed" || statusBoard[r][c] === "correct") return;
 
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ row: r, col: c, value: selectedNumber }));
-      }
+    const value = selectedNumber;
+
+    setBoard(prev => {
+      const newBoard = prev.map(row => [...row]);
+      newBoard[r][c] = value;
+      return newBoard;
+    });
+
+    setStatusBoard(prev => {
+      const newStatus = prev.map(row => [...row]);
+      if (value === "") newStatus[r][c] = "empty";
+      else if (parseInt(value) === solution[r][c]) newStatus[r][c] = "correct";
+      else newStatus[r][c] = "wrong";
+      return newStatus;
+    });
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ row: r, col: c, value }));
     }
   };
 
-  // WebSocket 受信処理
   useEffect(() => {
     if (!ws) return;
     ws.onmessage = (event) => {
@@ -36,9 +46,21 @@ export default function SudokuBoard({ ws }) {
     };
   }, [ws]);
 
+  const getCellStyle = (status) => {
+    switch (status) {
+      case "fixed":
+      case "correct":
+        return { background: "#dcdcdc" }; // 灰色
+      case "wrong":
+        return { background: "#ffcccc" }; // 赤
+      default:
+        return { background: "white" };
+    }
+  };
+
   return (
     <div>
-      {/* 数字選択UI */}
+      {/* 数字選択 */}
       <div style={{ marginBottom: "10px" }}>
         {[1,2,3,4,5,6,7,8,9].map(num => (
           <button
@@ -77,11 +99,14 @@ export default function SudokuBoard({ ws }) {
                     height: "35px",
                     textAlign: "center",
                     border: "1px solid black",
-                    cursor: "pointer",
+                    cursor:
+                      statusBoard[rIdx][cIdx] === "fixed" ||
+                      statusBoard[rIdx][cIdx] === "correct"
+                        ? "default"
+                        : "pointer",
                     fontSize: "18px",
                     fontWeight: "bold",
-                    background: cell === "" ? "white" : "#f0f8ff",
-                    // 3x3 区切りを太線にする
+                    ...getCellStyle(statusBoard[rIdx][cIdx]),
                     borderRight:
                       (cIdx + 1) % 3 === 0 && cIdx !== 8
                         ? "3px solid black"
