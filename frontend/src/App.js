@@ -9,7 +9,7 @@ function App() {
 
   useEffect(() => {
     // WebSocket
-    const socket = new WebSocket("ws://localhost:8080/ws");
+    const socket = new WebSocket(process.env.REACT_APP_WS_URL);
     setWs(socket);
     return () => socket.close();
   }, []);
