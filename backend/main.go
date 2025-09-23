@@ -11,92 +11,108 @@ import (
 	"github.com/ryo02puyopuyo/sudoku_online/backend/util" // パスはプロジェクトに合わせてください
 )
 
-
-
+// WebSocketのアップグレーダー設定
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool { return true }, // すべてのオリジンを許可
 }
 
-// --- サーバーからクライアントへ送るメッセージの統一形式 ---
+// --- サーバー・クライアント間のメッセージ構造体 ---
+
+// サーバーからクライアントへ送るメッセージ
 type ServerMessage struct {
-	Type    string      `json:"type"`    // メッセージの種類 ("puzzle_state" or "user_list")
+	Type    string      `json:"type"`    // メッセージの種類 ("board_state" or "user_list")
 	Payload interface{} `json:"payload"` // 実際のデータ
 }
 
-// PuzzleState はパズルの状態を保持
-type PuzzleState struct {
-	Puzzle   [9][9]int `json:"puzzle"`
-	Solution [9][9]int `json:"solution"`
+// クライアントからサーバーへ送るメッセージ
+type ClientMessage struct {
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload"`
 }
 
-// --- グローバル変数として、サーバーに一つだけの状態を管理 ---
+// --- 盤面の状態を定義する構造体 ---
+
+// 1マスごとの状態
+type Cell struct {
+	Value  int    `json:"value"`  // 0は空
+	Status string `json:"status"` // "fixed", "correct", "wrong", "empty"
+}
+
+// --- サーバー全体で共有するグローバルな状態 ---
 var (
-	mu            sync.Mutex
-	// 接続中のクライアントを<接続情報: ユーザーID>の形式で保持
-	clients       = make(map[*websocket.Conn]string)
-	currentPuzzle PuzzleState
-	nextUserID    = 1 // ユーザーIDを発行するためのカウンター
+	mu              sync.Mutex                     // 状態への同時アクセスを防ぐロック
+	clients         = make(map[*websocket.Conn]string) // <接続情報: ユーザーID>
+	currentBoard    [9][9]Cell                     // 現在の盤面の全セルの状態
+	currentSolution [9][9]int                      // 現在の盤面の解答
+	nextUserID      = 1                            // ユーザーID発行カウンター
 )
 
-// 最新のメンバー一覧を作成し、全員にブロードキャストする
+// 新しいパズルと盤面状態を生成し、グローバル変数を更新する
+func generateNewBoardState() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	solution, err := util.GenerateSolvedGrid(1000)
+	if err != nil {
+		log.Printf("Error generating grid: %v", err)
+		return
+	}
+	currentSolution = solution
+	puzzle := createPuzzleFromSolution(solution, 0.5) // 50%のマスを空にする
+
+	var board [9][9]Cell
+	for r := 0; r < 9; r++ {
+		for c := 0; c < 9; c++ {
+			if puzzle[r][c] != 0 {
+				board[r][c] = Cell{Value: puzzle[r][c], Status: "fixed"}
+			} else {
+				board[r][c] = Cell{Value: 0, Status: "empty"}
+			}
+		}
+	}
+	currentBoard = board
+	log.Println("A new board state has been generated and stored.")
+}
+
+// 最新の盤面状態を全員にブロードキャストする
+func broadcastBoardState() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	message := ServerMessage{Type: "board_state", Payload: currentBoard}
+
+	log.Printf("Broadcasting board state to %d clients...", len(clients))
+	for client := range clients {
+		if err := client.WriteJSON(message); err != nil {
+			log.Printf("Board state broadcast error: %v. Removing client.", err)
+			client.Close()
+			delete(clients, client)
+		}
+	}
+}
+
+// 最新のメンバー一覧を全員にブロードキャストする
 func broadcastUserList() {
 	mu.Lock()
 	defer mu.Unlock()
 
 	var userList []string
-	// clientsマップからIDだけを収集
 	for _, userID := range clients {
 		userList = append(userList, userID)
 	}
-
 	message := ServerMessage{Type: "user_list", Payload: userList}
 
 	log.Printf("Broadcasting user list to %d clients...", len(clients))
 	for client := range clients {
 		if err := client.WriteJSON(message); err != nil {
-			log.Printf("User list broadcast error: %v", err)
+			log.Printf("User list broadcast error: %v. Removing client.", err)
 			client.Close()
 			delete(clients, client)
 		}
 	}
 }
 
-// 最新のパズルを全員にブロードキャストする
-func broadcastPuzzleState() {
-	mu.Lock()
-	defer mu.Unlock()
-
-	message := ServerMessage{Type: "puzzle_state", Payload: currentPuzzle}
-
-	log.Printf("Broadcasting puzzle to %d clients...", len(clients))
-	for client := range clients {
-		if err := client.WriteJSON(message); err != nil {
-			log.Printf("Puzzle broadcast error: %v", err)
-			client.Close()
-			delete(clients, client)
-		}
-	}
-	log.Println("Puzzle broadcast complete.")
-}
-
-// 新しいパズルを生成して保存する
-func generateNewPuzzle() {
-	mu.Lock()
-	defer mu.Unlock()
-	// (この関数の内部は変更なし、ロックを追加しただけ)
-	solution, err := util.GenerateSolvedGrid(1000)
-	if err != nil {
-		log.Printf("Error generating new grid: %v", err)
-		return
-	}
-	puzzle := createPuzzleFromSolution(solution, 0.5)
-	currentPuzzle = PuzzleState{
-		Puzzle:   puzzle,
-		Solution: solution,
-	}
-	log.Println("A new puzzle has been generated and stored.")
-}
-
+// WebSocket接続ごとの処理
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -104,7 +120,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ---- 1. クライアント接続時の処理 ----
+	// 1. クライアント接続時の処理
 	var userID string
 	mu.Lock()
 	userID = fmt.Sprintf("Player %d", nextUserID)
@@ -123,12 +139,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		broadcastUserList() // メンバーが抜けたことを全員に通知
 	}()
 
-	// 2. 接続してきたクライアントに、まず現在のパズルを送信
+	// 2. 接続してきたクライアントに、まず現在の盤面状態を送信
 	mu.Lock()
-	initialMessage := ServerMessage{Type: "puzzle_state", Payload: currentPuzzle}
+	initialMessage := ServerMessage{Type: "board_state", Payload: currentBoard}
 	if err := conn.WriteJSON(initialMessage); err != nil {
 		mu.Unlock()
-		log.Printf("Initial puzzle send error: %v", err)
+		log.Printf("Initial puzzle send error for %s: %v", userID, err)
 		return
 	}
 	mu.Unlock()
@@ -136,32 +152,56 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	// 3. 全員に最新のメンバー一覧をブロードキャスト
 	broadcastUserList()
 
-	// ---- 4. クライアントからのメッセージを待つループ ----
+	// 4. クライアントからのメッセージを待つループ
 	for {
-		var msg string
+		var msg ClientMessage
 		if err := conn.ReadJSON(&msg); err != nil {
-			break
+			break // 読み取りエラー＝接続が切れたと判断
 		}
 
-		if msg == "new_puzzle" {
+		switch msg.Type {
+		case "new_puzzle":
 			log.Printf("Received 'new_puzzle' request from %s.", userID)
-			generateNewPuzzle()      // 新しい問題を生成し
-			broadcastPuzzleState() // 全員にブロードキャストする
+			generateNewBoardState()
+			broadcastBoardState()
+
+		case "cell_update":
+			payload, ok := msg.Payload.(map[string]interface{})
+			if !ok { continue }
+
+			row := int(payload["row"].(float64))
+			col := int(payload["col"].(float64))
+			value := int(payload["value"].(float64))
+
+			mu.Lock()
+			if currentBoard[row][col].Status != "fixed" {
+				if value == 0 {
+					currentBoard[row][col] = Cell{Value: 0, Status: "empty"}
+				} else if value == currentSolution[row][col] {
+					currentBoard[row][col] = Cell{Value: value, Status: "correct"}
+				} else {
+					currentBoard[row][col] = Cell{Value: value, Status: "wrong"}
+				}
+			}
+			mu.Unlock()
+
+			broadcastBoardState()
 		}
 	}
 }
 
 func main() {
-	generateNewPuzzle()
+	generateNewBoardState() // サーバー起動時に最初の盤面状態を生成
 	http.HandleFunc("/ws", handleConnections)
-	http.Handle("/", http.FileServer(http.Dir("./static")))
+	http.Handle("/", http.FileServer(http.Dir("./static"))) // フロントエンドのビルドファイルを配信
+
 	log.Println("Server running on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
 }
 
-// (createPuzzleFromSolution 関数は変更なし)
+// 解答から問題を作成するヘルパー関数
 func createPuzzleFromSolution(solution [9][9]int, difficulty float64) [9][9]int {
 	var puzzle [9][9]int
 	for r := 0; r < 9; r++ {

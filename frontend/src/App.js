@@ -1,77 +1,67 @@
-// src/App.js
-
 import { useEffect, useState } from "react";
 import SudokuBoard from "./SudokuBoard";
-import UserList from "./UserList"; // UserListコンポーネントをインポート
+import UserList from "./UserList";
 import "./App.css";
 
 function App() {
   const [ws, setWs] = useState(null);
-  const [puzzle, setPuzzle] = useState([]);
-  const [solution, setSolution] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
-  const [userList, setUserList] = useState([]); // メンバー一覧を保持するstateを追加
+  const [userList, setUserList] = useState([]);
+  const [boardState, setBoardState] = useState(null); // サーバーから送られてくる盤面状態
 
   useEffect(() => {
     const socket = new WebSocket(process.env.REACT_APP_WS_URL);
+    setWs(socket);
 
-    socket.onopen = () => {
-      console.log("WebSocket connected");
-      setIsConnected(true);
-      setWs(socket);
-    };
+    socket.onopen = () => setIsConnected(true);
+    socket.onclose = () => setIsConnected(false);
+    socket.onerror = (error) => console.error("WebSocket error:", error);
 
-    // メッセージ受信処理を修正
     socket.onmessage = (event) => {
       const msg = JSON.parse(event.data);
-
-      // メッセージのタイプに応じて、更新するstateを切り替える
       switch (msg.type) {
-        case "puzzle_state":
-          setPuzzle(msg.payload.puzzle);
-          setSolution(msg.payload.solution);
-          console.log("Puzzle state updated");
+        case "board_state":
+          setBoardState(msg.payload);
           break;
         case "user_list":
           setUserList(msg.payload);
-          console.log("User list updated:", msg.payload);
           break;
         default:
-          console.warn("Received unknown message type:", msg.type);
+          break;
       }
-    };
-
-    socket.onclose = () => {
-      console.log("WebSocket disconnected");
-      setIsConnected(false);
-    };
-
-    socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
     };
 
     return () => socket.close();
   }, []);
 
-  const requestNewPuzzle = () => {
+  // サーバーにメッセージを送信するためのヘルパー関数
+  const sendMessage = (type, payload) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify("new_puzzle"));
-      console.log("Requested a new puzzle from the server");
+      const message = { type, payload };
+      ws.send(JSON.stringify(message));
     }
+  };
+
+  // セル更新リクエストを送信する関数
+  const handleCellUpdate = (row, col, value) => {
+    sendMessage("cell_update", { row, col, value });
+  };
+
+  // 新しい問題のリクエストを送信する関数
+  const requestNewPuzzle = () => {
+    sendMessage("new_puzzle", {});
   };
 
   return (
     <div className="app-container">
-      {/* メンバー一覧コンポーネントを追加 */}
       <UserList users={userList} />
-
       <div className="game-area">
         <h1>リアルタイムナンプレ</h1>
         {!isConnected && <p>サーバーに接続中...</p>}
-        {puzzle.length > 0 && solution.length > 0 ? (
+        {boardState ? (
           <SudokuBoard
-            puzzle={puzzle}
-            solution={solution}
+            boardState={boardState}
+            onCellClick={handleCellUpdate}
             onNewGameClick={requestNewPuzzle}
           />
         ) : (
