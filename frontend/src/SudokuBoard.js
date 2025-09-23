@@ -1,182 +1,125 @@
 import { useState, useEffect } from "react";
 
-export default function SudokuBoard({ ws, puzzle, solution }) {
-  const [board, setBoard] = useState(
-    puzzle.map(row => row.map(cell => (cell === 0 ? "" : cell)))
-  );
-  const [statusBoard, setStatusBoard] = useState(
-    puzzle.map(row => row.map(cell => (cell === 0 ? "empty" : "fixed")))
-  );
-  const [selectedNumber, setSelectedNumber] = useState(null);
-  const [showSolution, setShowSolution] = useState(false); // 正解表示切替
+// 渡された puzzle プロパティに基づいて初期状態を生成するヘルパー関数
+const getInitialState = (puzzle) => ({
+  board: puzzle.map(row => row.map(cell => (cell === 0 ? "" : cell))),
+  statusBoard: puzzle.map(row => row.map(cell => (cell === 0 ? "empty" : "fixed"))),
+});
 
+export default function SudokuBoard({ puzzle, solution, onNewGameClick }) {
+  const [board, setBoard] = useState(getInitialState(puzzle).board);
+  const [statusBoard, setStatusBoard] = useState(getInitialState(puzzle).statusBoard);
+  const [selectedNumber, setSelectedNumber] = useState(null);
+
+  // puzzleプロパティが変更されたら（＝新しい問題が届いたら）、盤面の表示をリセットする
+  useEffect(() => {
+    const initialState = getInitialState(puzzle);
+    setBoard(initialState.board);
+    setStatusBoard(initialState.statusBoard);
+  }, [puzzle]);
+
+  // セルがクリックされたときの処理
   const handleCellClick = (r, c) => {
-    if (selectedNumber === null) return;
-    if (statusBoard[r][c] === "fixed" || statusBoard[r][c] === "correct") return;
+    if (selectedNumber === null) return; // 数字が選択されていなければ何もしない
+    // 固定マスは変更不可
+    if (statusBoard[r][c] === "fixed") return;
 
     const value = selectedNumber;
 
+    // 盤面の数字を更新
     setBoard(prev => {
       const newBoard = prev.map(row => [...row]);
       newBoard[r][c] = value;
       return newBoard;
     });
 
+    // マスの状態（正解/不正解）を更新
     setStatusBoard(prev => {
       const newStatus = prev.map(row => [...row]);
-      if (value === "") newStatus[r][c] = "empty";
-      else if (parseInt(value) === solution[r][c]) newStatus[r][c] = "correct";
-      else newStatus[r][c] = "wrong";
+      if (value === "") {
+        newStatus[r][c] = "empty";
+      } else if (parseInt(value, 10) === solution[r][c]) {
+        newStatus[r][c] = "correct";
+      } else {
+        newStatus[r][c] = "wrong";
+      }
       return newStatus;
     });
-
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ row: r, col: c, value }));
-    }
   };
 
-  useEffect(() => {
-    if (!ws) return;
-    ws.onmessage = (event) => {
-      const { row, col, value } = JSON.parse(event.data);
-      setBoard(prev => {
-        const newBoard = prev.map(r => [...r]);
-        newBoard[row][col] = value;
-        return newBoard;
-      });
-    };
-  }, [ws]);
-
+  // マスの状態に応じてスタイルを返す
   const getCellStyle = (status) => {
     switch (status) {
       case "fixed":
+        return { background: "#e9ecef", color: "black", fontWeight: "bold" };
       case "correct":
-        return { background: "#dcdcdc" }; // 灰色
+        return { background: "white", color: "#1976d2", fontWeight: "bold" };
       case "wrong":
-        return { background: "#ffcccc" }; // 赤
-      default:
-        return { background: "white" };
+        return { background: "#ffcdd2", color: "#c62828", fontWeight: "bold" };
+      default: // empty
+        return { background: "white", color: "#1976d2", fontWeight: "normal" };
     }
   };
 
   return (
     <div>
-      {/* 数字選択UI */}
-      <div style={{ marginBottom: "10px" }}>
-        {[1,2,3,4,5,6,7,8,9].map(num => (
+      <div className="controls">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
           <button
             key={num}
             onClick={() => setSelectedNumber(num)}
-            style={{
-              margin: "2px",
-              background: selectedNumber === num ? "lightblue" : "white"
-            }}
+            className={selectedNumber === num ? 'selected' : ''}
           >
             {num}
           </button>
         ))}
         <button
           onClick={() => setSelectedNumber("")}
-          style={{
-            margin: "2px",
-            background: selectedNumber === "" ? "lightblue" : "white"
-          }}
+          className={selectedNumber === "" ? 'selected' : ''}
         >
-          消す
+          消
         </button>
       </div>
 
-      {/* 正解表示切替ボタン */}
-      <button
-        onClick={() => setShowSolution(prev => !prev)}
-        style={{ marginBottom: "10px" }}
-      >
-        {showSolution ? "正解を隠す" : "正解を表示"}
-      </button>
+      <table className="sudoku-board" style={{ borderCollapse: 'collapse', border: '2px solid black' }}>
+        <tbody>
+          {board.map((row, rIdx) => (
+            <tr key={rIdx}>
+              {row.map((cell, cIdx) => (
+                <td
+                  key={cIdx}
+                  onClick={() => handleCellClick(rIdx, cIdx)}
+                  style={{
+                    // ⬇️ ここからが修正・追加したスタイルです ⬇️
+                    
+                    // 基本のセルスタイル
+                    width: '40px',
+                    height: '40px',
+                    textAlign: 'center',
+                    fontSize: '20px',
+                    cursor: statusBoard[rIdx][cIdx] === "fixed" ? "default" : "pointer",
+                    
+                    // 正解・不正解などに応じた色設定
+                    ...getCellStyle(statusBoard[rIdx][cIdx]),
 
-      {/* 盤面 */}
-      <div style={{ display: "flex", gap: "50px" }}>
-        {/* プレイヤー盤面 */}
-        <div>
-          <table style={{ borderCollapse: "collapse" }}>
-            <tbody>
-              {board.map((row, rIdx) => (
-                <tr key={rIdx}>
-                  {row.map((cell, cIdx) => (
-                    <td
-                      key={cIdx}
-                      onClick={() => handleCellClick(rIdx, cIdx)}
-                      style={{
-                        width: "35px",
-                        height: "35px",
-                        textAlign: "center",
-                        border: "1px solid black",
-                        cursor:
-                          statusBoard[rIdx][cIdx] === "fixed" ||
-                          statusBoard[rIdx][cIdx] === "correct"
-                            ? "default"
-                            : "pointer",
-                        fontSize: "18px",
-                        fontWeight: "bold",
-                        ...getCellStyle(statusBoard[rIdx][cIdx]),
-                        borderRight:
-                          (cIdx + 1) % 3 === 0 && cIdx !== 8
-                            ? "3px solid black"
-                            : "1px solid black",
-                        borderBottom:
-                          (rIdx + 1) % 3 === 0 && rIdx !== 8
-                            ? "3px solid black"
-                            : "1px solid black"
-                      }}
-                    >
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
+                    // 3x3ブロックを区切るための太い枠線
+                    borderTop: '1px solid #ccc',
+                    borderLeft: '1px solid #ccc',
+                    borderRight: (cIdx + 1) % 3 === 0 ? '2px solid black' : '1px solid #ccc',
+                    borderBottom: (rIdx + 1) % 3 === 0 ? '2px solid black' : '1px solid #ccc',
+                  }}
+                >
+                  {cell}
+                </td>
               ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 正解盤面（表示切替） */}
-        {showSolution && (
-          <div>
-            <h3>正解（デバッグ用）</h3>
-            <table style={{ borderCollapse: "collapse" }}>
-              <tbody>
-                {solution.map((row, rIdx) => (
-                  <tr key={rIdx}>
-                    {row.map((cell, cIdx) => (
-                      <td
-                        key={cIdx}
-                        style={{
-                          width: "35px",
-                          height: "35px",
-                          textAlign: "center",
-                          border: "1px solid black",
-                          fontSize: "18px",
-                          fontWeight: "bold",
-                          background: "#f0f0f0",
-                          borderRight:
-                            (cIdx + 1) % 3 === 0 && cIdx !== 8
-                              ? "3px solid black"
-                              : "1px solid black",
-                          borderBottom:
-                            (rIdx + 1) % 3 === 0 && rIdx !== 8
-                              ? "3px solid black"
-                              : "1px solid black"
-                        }}
-                      >
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      
+      <button onClick={onNewGameClick} className="new-game-button">
+        新しい問題
+      </button>
     </div>
   );
 }
