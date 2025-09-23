@@ -32,24 +32,20 @@ func GenerateSolvedGrid(maxAttempts int) ([9][9]int, error) {
 		usedRow := [9][10]bool{}
 		usedCol := [9][10]bool{}
 		usedBox := [9][10]bool{}
-
 		cellList := make([][2]int, 0, 81)
 		for r := 0; r < 9; r++ {
 			for c := 0; c < 9; c++ {
 				cellList = append(cellList, [2]int{r, c})
 			}
 		}
-
 		var dfs func(idx int) bool
 		dfs = func(idx int) bool {
 			if idx == len(cellList) {
 				return true
 			}
 			r, c := cellList[idx][0], cellList[idx][1]
-
 			nums := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 			shuffle(nums)
-
 			for _, n := range nums {
 				boxIdx := boxIndex(r, c)
 				if !usedRow[r][n] && !usedCol[c][n] && !usedBox[boxIdx][n] {
@@ -64,7 +60,6 @@ func GenerateSolvedGrid(maxAttempts int) ([9][9]int, error) {
 			}
 			return false
 		}
-
 		if dfs(0) {
 			return grid, nil
 		}

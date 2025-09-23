@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import SudokuBoard from "./SudokuBoard";
 import UserList from "./UserList";
+import ScoreBoard from "./ScoreBoard";
 import "./App.css";
 
 function App() {
   const [ws, setWs] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [userList, setUserList] = useState([]);
-  const [boardState, setBoardState] = useState(null); // サーバーから送られてくる盤面状態
+  const [myID, setMyID] = useState(null);
+  const [players, setPlayers] = useState([]);
+  const [scores, setScores] = useState({ team1: 0, team2: 0 });
+  const [boardState, setBoardState] = useState(null);
 
   useEffect(() => {
     const socket = new WebSocket(process.env.REACT_APP_WS_URL);
@@ -20,43 +23,40 @@ function App() {
     socket.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       switch (msg.type) {
+        case "welcome":
+          setMyID(msg.payload.yourID);
+          setBoardState(msg.payload.boardState);
+          break;
         case "board_state":
           setBoardState(msg.payload);
           break;
-        case "user_list":
-          setUserList(msg.payload);
+        case "user_list_update":
+          setPlayers(msg.payload.players);
+          setScores(msg.payload.scores);
           break;
         default:
           break;
       }
     };
-
     return () => socket.close();
   }, []);
 
-  // サーバーにメッセージを送信するためのヘルパー関数
   const sendMessage = (type, payload) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
-      const message = { type, payload };
-      ws.send(JSON.stringify(message));
+      ws.send(JSON.stringify({ type, payload }));
     }
   };
 
-  // セル更新リクエストを送信する関数
-  const handleCellUpdate = (row, col, value) => {
-    sendMessage("cell_update", { row, col, value });
-  };
-
-  // 新しい問題のリクエストを送信する関数
-  const requestNewPuzzle = () => {
-    sendMessage("new_puzzle", {});
-  };
+  const handleCellUpdate = (row, col, value) => sendMessage("cell_update", { row, col, value });
+  const requestNewPuzzle = () => sendMessage("new_puzzle", {});
+  const handleChangeTeam = (team) => sendMessage("change_team", { team });
 
   return (
     <div className="app-container">
-      <UserList users={userList} />
+      <UserList users={players} myID={myID} onChangeTeam={handleChangeTeam} />
       <div className="game-area">
         <h1>リアルタイムナンプレ</h1>
+        <ScoreBoard scores={scores} />
         {!isConnected && <p>サーバーに接続中...</p>}
         {boardState ? (
           <SudokuBoard
@@ -71,5 +71,4 @@ function App() {
     </div>
   );
 }
-
 export default App;

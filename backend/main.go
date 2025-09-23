@@ -11,46 +11,64 @@ import (
 	"github.com/ryo02puyopuyo/sudoku_online/backend/util" // パスはプロジェクトに合わせてください
 )
 
+
 // WebSocketのアップグレーダー設定
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true }, // すべてのオリジンを許可
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
 // --- サーバー・クライアント間のメッセージ構造体 ---
-
-// サーバーからクライアントへ送るメッセージ
 type ServerMessage struct {
-	Type    string      `json:"type"`    // メッセージの種類 ("board_state" or "user_list")
-	Payload interface{} `json:"payload"` // 実際のデータ
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload"`
 }
-
-// クライアントからサーバーへ送るメッセージ
 type ClientMessage struct {
 	Type    string      `json:"type"`
 	Payload interface{} `json:"payload"`
 }
 
 // --- 盤面の状態を定義する構造体 ---
-
-// 1マスごとの状態
+type Player struct {
+	ID   string `json:"id"`
+	Team int    `json:"team"`
+}
 type Cell struct {
-	Value  int    `json:"value"`  // 0は空
-	Status string `json:"status"` // "fixed", "correct", "wrong", "empty"
+	Value        int    `json:"value"`
+	Status       string `json:"status"`
+	FilledByTeam int    `json:"filledByTeam"`
+}
+type Score struct {
+	Team1 int `json:"team1"`
+	Team2 int `json:"team2"`
+}
+type UserListUpdatePayload struct {
+	Players []Player `json:"players"`
+	Scores  Score    `json:"scores"`
+}
+// 新規接続者に送る初期情報をまとめたもの
+type WelcomePayload struct {
+	YourID     string     `json:"yourID"`
+	BoardState [9][9]Cell `json:"boardState"`
 }
 
 // --- サーバー全体で共有するグローバルな状態 ---
 var (
-	mu              sync.Mutex                     // 状態への同時アクセスを防ぐロック
-	clients         = make(map[*websocket.Conn]string) // <接続情報: ユーザーID>
-	currentBoard    [9][9]Cell                     // 現在の盤面の全セルの状態
-	currentSolution [9][9]int                      // 現在の盤面の解答
-	nextUserID      = 1                            // ユーザーID発行カウンター
+	mu              sync.Mutex
+	clients         = make(map[*websocket.Conn]*Player)
+	currentBoard    [9][9]Cell
+	currentSolution [9][9]int
+	nextUserID      = 1
+	// スコアを直接保持する変数
+	currentScores   Score
 )
 
-// 新しいパズルと盤面状態を生成し、グローバル変数を更新する
+// 新しいパズルと盤面状態を生成し、保存する
 func generateNewBoardState() {
 	mu.Lock()
 	defer mu.Unlock()
+	
+	// 新しいゲームが始まったら、スコアをリセットする
+	currentScores = Score{Team1: 0, Team2: 0}
 
 	solution, err := util.GenerateSolvedGrid(1000)
 	if err != nil {
@@ -58,30 +76,26 @@ func generateNewBoardState() {
 		return
 	}
 	currentSolution = solution
-	puzzle := createPuzzleFromSolution(solution, 0.5) // 50%のマスを空にする
-
+	puzzle := createPuzzleFromSolution(solution, 0.5)
 	var board [9][9]Cell
 	for r := 0; r < 9; r++ {
 		for c := 0; c < 9; c++ {
 			if puzzle[r][c] != 0 {
-				board[r][c] = Cell{Value: puzzle[r][c], Status: "fixed"}
+				board[r][c] = Cell{Value: puzzle[r][c], Status: "fixed", FilledByTeam: 0}
 			} else {
-				board[r][c] = Cell{Value: 0, Status: "empty"}
+				board[r][c] = Cell{Value: 0, Status: "empty", FilledByTeam: 0}
 			}
 		}
 	}
 	currentBoard = board
-	log.Println("A new board state has been generated and stored.")
+	log.Println("A new board state has been generated and scores have been reset.")
 }
 
 // 最新の盤面状態を全員にブロードキャストする
 func broadcastBoardState() {
 	mu.Lock()
 	defer mu.Unlock()
-
 	message := ServerMessage{Type: "board_state", Payload: currentBoard}
-
-	log.Printf("Broadcasting board state to %d clients...", len(clients))
 	for client := range clients {
 		if err := client.WriteJSON(message); err != nil {
 			log.Printf("Board state broadcast error: %v. Removing client.", err)
@@ -91,18 +105,20 @@ func broadcastBoardState() {
 	}
 }
 
-// 最新のメンバー一覧を全員にブロードキャストする
-func broadcastUserList() {
+// 最新のメンバー一覧とスコアを全員にブロードキャスト
+func broadcastUserListUpdate() {
 	mu.Lock()
 	defer mu.Unlock()
 
-	var userList []string
-	for _, userID := range clients {
-		userList = append(userList, userID)
+	var userList []Player
+	for _, player := range clients {
+		userList = append(userList, *player)
 	}
-	message := ServerMessage{Type: "user_list", Payload: userList}
 
-	log.Printf("Broadcasting user list to %d clients...", len(clients))
+	// スコアを再計算せず、保持している現在のスコアをそのまま使う
+	payload := UserListUpdatePayload{Players: userList, Scores: currentScores}
+	message := ServerMessage{Type: "user_list_update", Payload: payload}
+
 	for client := range clients {
 		if err := client.WriteJSON(message); err != nil {
 			log.Printf("User list broadcast error: %v. Removing client.", err)
@@ -116,85 +132,111 @@ func broadcastUserList() {
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println(err)
+		log.Printf("Failed to upgrade connection: %v", err)
 		return
 	}
 
-	// 1. クライアント接続時の処理
-	var userID string
+	// 1. 新しいプレイヤーを作成し、リストに登録
 	mu.Lock()
-	userID = fmt.Sprintf("Player %d", nextUserID)
+	player := &Player{
+		ID:   fmt.Sprintf("Player %d", nextUserID),
+		Team: 1,
+	}
 	nextUserID++
-	clients[conn] = userID // 新しいクライアントをIDと共にマップに追加
+	clients[conn] = player
+	welcomePayload := WelcomePayload{
+		YourID:     player.ID,
+		BoardState: currentBoard,
+	}
 	mu.Unlock()
-	log.Printf("%s connected. Total clients: %d", userID, len(clients))
 
-	// 接続が終了したとき（関数を抜けるとき）に必ず実行
+	log.Printf("%s connected. Total clients: %d", player.ID, len(clients))
+
+	// 2. 接続が切れた際のクリーンアップ処理
 	defer func() {
 		mu.Lock()
-		delete(clients, conn) // クライアントをマップから削除
+		delete(clients, conn)
 		mu.Unlock()
 		conn.Close()
-		log.Printf("%s disconnected. Total clients: %d", userID, len(clients))
-		broadcastUserList() // メンバーが抜けたことを全員に通知
+		log.Printf("%s disconnected.", player.ID)
+		broadcastUserListUpdate()
 	}()
 
-	// 2. 接続してきたクライアントに、まず現在の盤面状態を送信
-	mu.Lock()
-	initialMessage := ServerMessage{Type: "board_state", Payload: currentBoard}
-	if err := conn.WriteJSON(initialMessage); err != nil {
-		mu.Unlock()
-		log.Printf("Initial puzzle send error for %s: %v", userID, err)
+	// 3. 接続クライアントに初期情報をまとめた"welcome"メッセージを送信
+	if err := conn.WriteJSON(ServerMessage{Type: "welcome", Payload: welcomePayload}); err != nil {
+		log.Printf("Could not send welcome message to %s: %v", player.ID, err)
 		return
 	}
-	mu.Unlock()
 
-	// 3. 全員に最新のメンバー一覧をブロードキャスト
-	broadcastUserList()
+	// 4. 全員に最新のメンバー一覧をブロードキャスト
+	broadcastUserListUpdate()
 
-	// 4. クライアントからのメッセージを待つループ
+	// 5. クライアントからのメッセージを待つループ
 	for {
 		var msg ClientMessage
 		if err := conn.ReadJSON(&msg); err != nil {
-			break // 読み取りエラー＝接続が切れたと判断
+			break
 		}
-
 		switch msg.Type {
 		case "new_puzzle":
-			log.Printf("Received 'new_puzzle' request from %s.", userID)
 			generateNewBoardState()
 			broadcastBoardState()
-
+			broadcastUserListUpdate()
 		case "cell_update":
-			payload, ok := msg.Payload.(map[string]interface{})
-			if !ok { continue }
-
-			row := int(payload["row"].(float64))
-			col := int(payload["col"].(float64))
-			value := int(payload["value"].(float64))
-
+			payload, _ := msg.Payload.(map[string]interface{})
+			row, col, value := int(payload["row"].(float64)), int(payload["col"].(float64)), int(payload["value"].(float64))
+			
 			mu.Lock()
-			if currentBoard[row][col].Status != "fixed" {
+			// 正解済みのマスと固定マスは編集不可
+			if currentBoard[row][col].Status != "fixed" && currentBoard[row][col].Status != "correct" {
 				if value == 0 {
-					currentBoard[row][col] = Cell{Value: 0, Status: "empty"}
+					// マスを消すだけではスコアは変動しない
+					currentBoard[row][col] = Cell{Value: 0, Status: "empty", FilledByTeam: 0}
 				} else if value == currentSolution[row][col] {
-					currentBoard[row][col] = Cell{Value: value, Status: "correct"}
+					// 正解した場合
+					currentBoard[row][col] = Cell{Value: value, Status: "correct", FilledByTeam: player.Team}
+					if player.Team == 1 {
+						currentScores.Team1++
+					} else {
+						currentScores.Team2++
+					}
 				} else {
-					currentBoard[row][col] = Cell{Value: value, Status: "wrong"}
+					// 間違えた場合
+					currentBoard[row][col] = Cell{Value: value, Status: "wrong", FilledByTeam: player.Team}
+					if player.Team == 1 {
+						currentScores.Team1--
+					} else {
+						currentScores.Team2--
+					}
 				}
 			}
 			mu.Unlock()
 
 			broadcastBoardState()
+			broadcastUserListUpdate()
+
+		case "change_team":
+			payload, _ := msg.Payload.(map[string]interface{})
+			team := int(payload["team"].(float64))
+			if team == 1 || team == 2 {
+				mu.Lock()
+				clients[conn].Team = team
+				mu.Unlock()
+				log.Printf("%s changed to Team %d", player.ID, team)
+				broadcastUserListUpdate()
+			}
 		}
 	}
 }
 
 func main() {
-	generateNewBoardState() // サーバー起動時に最初の盤面状態を生成
+	log.Println("Generating initial board...")
+	generateNewBoardState()
+	if (currentBoard == [9][9]Cell{}) {
+		log.Fatal("Failed to generate initial board. Server cannot start.")
+	}
 	http.HandleFunc("/ws", handleConnections)
-	http.Handle("/", http.FileServer(http.Dir("./static"))) // フロントエンドのビルドファイルを配信
-
+	http.Handle("/", http.FileServer(http.Dir("./static")))
 	log.Println("Server running on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal("ListenAndServe: ", err)
