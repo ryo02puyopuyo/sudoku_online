@@ -2,6 +2,8 @@ import { useState } from "react";
 
 export default function SudokuBoard({ boardState, onCellClick, onNewGameClick }) {
   const [selectedNumber, setSelectedNumber] = useState(null);
+  // boardState (2次元配列) を1次元配列に変換し、値が0のセルの数を数える
+  const remainingCells = boardState.flat().filter(cell => cell.value === 0).length;
 
   const handleCellClick = (r, c) => {
     if (selectedNumber === null) return;
@@ -39,6 +41,15 @@ export default function SudokuBoard({ boardState, onCellClick, onNewGameClick })
         >
           消
         </button>
+      </div>
+
+      {/* 残りマスとゲーム完了メッセージを表示するエリア */}
+      <div className="game-info">
+        {remainingCells > 0 ? (
+          <span>残りマス: <strong>{remainingCells}</strong></span>
+        ) : (
+          <span className="game-complete">🎉コンプリート！🎉</span>
+        )}
       </div>
 
       <table className="sudoku-board" style={{ borderCollapse: 'collapse', border: '2px solid black' }}>
