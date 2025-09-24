@@ -4,6 +4,7 @@ import UserList from "./UserList";
 import ScoreBoard from "./ScoreBoard";
 import TeamSelector from "./TeamSelector";
 import Chat from "./Chat";
+import ResultModal from "./ResultModal";
 import "./App.css";
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [boardState, setBoardState] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
+  const [gameOverResult, setGameOverResult] = useState(null);
   
   const ws = useRef(null);
 
@@ -46,6 +48,12 @@ function App() {
         case "new_chat_message":
           setChatMessages(prevMessages => [...prevMessages, msg.payload]);
           break;
+        case "game_over":
+          setGameOverResult(msg.payload);
+          break;
+        case "new_game_started":
+          setGameOverResult(null);
+          break;
         default:
           break;
       }
@@ -63,13 +71,18 @@ function App() {
   };
 
   const handleCellUpdate = (row, col, value) => sendMessage("cell_update", { row, col, value });
-  const requestNewPuzzle = () => sendMessage("new_puzzle", {});
+  
+  const requestNewPuzzle = () => {
+    sendMessage("new_puzzle", {});
+  };
+
   const handleChangeTeam = (team) => sendMessage("change_team", { team });
   const handleChangeName = (name) => sendMessage("change_name", { name });
   const handleSendMessage = (message) => sendMessage("send_chat_message", { message });
 
   return (
     <div className="app-container">
+      <ResultModal result={gameOverResult} onNewGame={requestNewPuzzle} />
       <div className="sidebar-container">
         <UserList
           users={players}

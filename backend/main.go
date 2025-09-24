@@ -12,12 +12,7 @@ import (
 	"github.com/ryo02puyopuyo/sudoku_online/backend/util" // パスはプロジェクトに合わせてください
 )
 
-// WebSocketのアップグレーダー設定
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
-// --- サーバー・クライアント間のメッセージ構造体 ---
+// --- 構造体定義 ---
 type ServerMessage struct {
 	Type    string      `json:"type"`
 	Payload interface{} `json:"payload"`
@@ -26,8 +21,6 @@ type ClientMessage struct {
 	Type    string      `json:"type"`
 	Payload interface{} `json:"payload"`
 }
-
-// --- 状態を定義する構造体 ---
 type Player struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -56,22 +49,35 @@ type ChatMessage struct {
 	Message    string `json:"message"`
 	Timestamp  string `json:"timestamp"`
 }
+type GameOverPayload struct {
+	WinnerTeam  int   `json:"winnerTeam"`
+	FinalScores Score `json:"finalScores"`
+}
 
-// --- サーバー全体で共有するグローバルな状態 ---
+// --- グローバル変数 ---
 var (
-	mu              sync.Mutex
-	clients         = make(map[*websocket.Conn]*Player)
-	currentBoard    [9][9]Cell
-	currentSolution [9][9]int
-	nextUserID      = 1
-	currentScores   Score
+	mu                  sync.Mutex
+	clients             = make(map[*websocket.Conn]*Player)
+	currentBoard        [9][9]Cell
+	currentSolution     [9][9]int
+	nextUserID          = 1
+	currentScores       Score
+	isGameOver          bool
+	lastGameOverPayload *GameOverPayload
+	upgrader            = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
 )
 
-// 新しいパズルと盤面状態を生成し、保存する
+// 新しいゲームを開始する際に状態をリセット
 func generateNewBoardState() {
 	mu.Lock()
 	defer mu.Unlock()
+
 	currentScores = Score{Team1: 0, Team2: 0}
+	isGameOver = false
+	lastGameOverPayload = nil
+
 	solution, err := util.GenerateSolvedGrid(1000)
 	if err != nil {
 		log.Printf("Error generating grid: %v", err)
@@ -83,17 +89,17 @@ func generateNewBoardState() {
 	for r := 0; r < 9; r++ {
 		for c := 0; c < 9; c++ {
 			if puzzle[r][c] != 0 {
-				board[r][c] = Cell{Value: puzzle[r][c], Status: "fixed", FilledByTeam: 0}
+				board[r][c] = Cell{Value: puzzle[r][c], Status: "fixed"}
 			} else {
-				board[r][c] = Cell{Value: 0, Status: "empty", FilledByTeam: 0}
+				board[r][c] = Cell{Value: 0, Status: "empty"}
 			}
 		}
 	}
 	currentBoard = board
-	log.Println("A new board state has been generated and scores have been reset.")
+	log.Println("A new board state has been generated and game state has been reset.")
 }
 
-// 最新の盤面状態を全員にブロードキャストする
+// 最新の盤面状態を全員にブロードキャスト
 func broadcastBoardState() {
 	mu.Lock()
 	defer mu.Unlock()
@@ -117,10 +123,8 @@ func broadcastUserListUpdate() {
 		userList = append(userList, *player)
 	}
 
-	// スコアをグローバル変数から直接使用
 	payload := UserListUpdatePayload{Players: userList, Scores: currentScores}
 	message := ServerMessage{Type: "user_list_update", Payload: payload}
-
 	for client := range clients {
 		if err := client.WriteJSON(message); err != nil {
 			log.Printf("User list broadcast error: %v. Removing client.", err)
@@ -130,7 +134,22 @@ func broadcastUserListUpdate() {
 	}
 }
 
-// チャットメッセージを全員にブロードキャストする
+// ゲーム終了を全員にブロードキャスト
+func broadcastGameOver(payload GameOverPayload) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	msg := ServerMessage{Type: "game_over", Payload: payload}
+	for client := range clients {
+		if err := client.WriteJSON(msg); err != nil {
+			log.Printf("Game Over broadcast error: %v. Removing client.", err)
+			client.Close()
+			delete(clients, client)
+		}
+	}
+}
+
+// チャットメッセージを全員にブロードキャスト
 func broadcastChatMessage(message ChatMessage) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -146,21 +165,32 @@ func broadcastChatMessage(message ChatMessage) {
 	}
 }
 
+// 新しいゲームが始まったことを全員に通知する
+func broadcastNewGameStarted() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	msg := ServerMessage{Type: "new_game_started"}
+
+	for client := range clients {
+		if err := client.WriteJSON(msg); err != nil {
+			log.Printf("New Game Started broadcast error: %v. Removing client.", err)
+			client.Close()
+			delete(clients, client)
+		}
+	}
+}
+
 // WebSocket接続ごとの処理
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("Failed to upgrade connection: %v", err)
 		return
 	}
 
 	mu.Lock()
 	playerID := fmt.Sprintf("Player %d", nextUserID)
-	player := &Player{
-		ID:   playerID,
-		Name: playerID,
-		Team: 1,
-	}
+	player := &Player{ID: playerID, Name: playerID, Team: 1}
 	nextUserID++
 	clients[conn] = player
 	welcomePayload := WelcomePayload{
@@ -181,9 +211,16 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if err := conn.WriteJSON(ServerMessage{Type: "welcome", Payload: welcomePayload}); err != nil {
-		log.Printf("Could not send welcome message to %s: %v", player.ID, err)
 		return
 	}
+
+	mu.Lock()
+	if isGameOver {
+		if err := conn.WriteJSON(ServerMessage{Type: "game_over", Payload: *lastGameOverPayload}); err != nil {
+			log.Printf("Could not send late game_over message to %s", player.ID)
+		}
+	}
+	mu.Unlock()
 
 	broadcastUserListUpdate()
 
@@ -192,19 +229,29 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		if err := conn.ReadJSON(&msg); err != nil {
 			break
 		}
+
+		mu.Lock()
+		if isGameOver && msg.Type != "new_puzzle" {
+			mu.Unlock()
+			continue
+		}
+		mu.Unlock()
+
 		switch msg.Type {
 		case "new_puzzle":
 			generateNewBoardState()
+			broadcastNewGameStarted() // 新しいゲームの開始を明示的に通知
 			broadcastBoardState()
 			broadcastUserListUpdate()
 		case "cell_update":
 			payload, _ := msg.Payload.(map[string]interface{})
 			row, col, value := int(payload["row"].(float64)), int(payload["col"].(float64)), int(payload["value"].(float64))
 
+			var boardCompleted = false
 			mu.Lock()
 			if currentBoard[row][col].Status != "fixed" && currentBoard[row][col].Status != "correct" {
 				if value == 0 {
-					currentBoard[row][col] = Cell{Value: 0, Status: "empty", FilledByTeam: 0}
+					currentBoard[row][col] = Cell{Value: 0, Status: "empty"}
 				} else if value == currentSolution[row][col] {
 					currentBoard[row][col] = Cell{Value: value, Status: "correct", FilledByTeam: player.Team}
 					if player.Team == 1 {
@@ -220,11 +267,47 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 						currentScores.Team2--
 					}
 				}
+
+				isFull := true
+				for r_check := 0; r_check < 9; r_check++ {
+					for c_check := 0; c_check < 9; c_check++ {
+						if currentBoard[r_check][c_check].Status != "correct" && currentBoard[r_check][c_check].Status != "fixed" {
+							isFull = false
+							break
+						}
+					}
+				}
+				if isFull {
+					boardCompleted = true
+					isGameOver = true
+				}
 			}
 			mu.Unlock()
 
 			broadcastBoardState()
 			broadcastUserListUpdate()
+
+			if boardCompleted {
+				log.Println("Game Over!")
+				var winner int
+				if currentScores.Team1 > currentScores.Team2 {
+					winner = 1
+				} else if currentScores.Team2 > currentScores.Team1 {
+					winner = 2
+				} else {
+					winner = 0
+				}
+
+				gameOverPayload := GameOverPayload{
+					WinnerTeam:  winner,
+					FinalScores: currentScores,
+				}
+				mu.Lock()
+				lastGameOverPayload = &gameOverPayload
+				mu.Unlock()
+
+				broadcastGameOver(gameOverPayload)
+			}
 		case "change_team":
 			payload, _ := msg.Payload.(map[string]interface{})
 			team := int(payload["team"].(float64))

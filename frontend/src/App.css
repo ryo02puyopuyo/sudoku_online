@@ -1,3 +1,5 @@
+/* App.css の全体 */
+
 .app-container {
   display: flex;
   flex-direction: column;
@@ -277,4 +279,58 @@ h1 {
 }
 .chat-input-form button:hover {
   background-color: #0056b3;
+}
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content {
+  background: white;
+  padding: 30px 40px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  animation: fadeIn 0.3s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.modal-content h2 {
+  margin-top: 0;
+  font-size: 28px;
+  color: #333;
+}
+.winner-text {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 15px 0;
+}
+.winner-text.team-0 { color: #555; }
+.winner-text.team-1 { color: #1976d2; }
+.winner-text.team-2 { color: #2e7d32; }
+.final-scores {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin: 25px 0;
+  font-size: 18px;
+}
+.final-score-team span {
+  font-weight: bold;
+  font-size: 22px;
+  margin-left: 10px;
+}
+.final-score-team.team-1 span { color: #1976d2; }
+.final-score-team.team-2 span { color: #2e7d32; }
+.modal-button {
+  margin-top: 10px;
 }
