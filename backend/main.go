@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-  "sync"
+	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/util" // パスはプロジェクトに合わせてください
 )
-
 
 // WebSocketのアップグレーダー設定
 var upgrader = websocket.Upgrader{
@@ -27,9 +27,10 @@ type ClientMessage struct {
 	Payload interface{} `json:"payload"`
 }
 
-// --- 盤面の状態を定義する構造体 ---
+// --- 状態を定義する構造体 ---
 type Player struct {
 	ID   string `json:"id"`
+	Name string `json:"name"`
 	Team int    `json:"team"`
 }
 type Cell struct {
@@ -45,10 +46,15 @@ type UserListUpdatePayload struct {
 	Players []Player `json:"players"`
 	Scores  Score    `json:"scores"`
 }
-// 新規接続者に送る初期情報をまとめたもの
 type WelcomePayload struct {
-	YourID     string     `json:"yourID"`
+	YourPlayer Player     `json:"yourPlayer"`
 	BoardState [9][9]Cell `json:"boardState"`
+}
+type ChatMessage struct {
+	SenderName string `json:"senderName"`
+	SenderTeam int    `json:"senderTeam"`
+	Message    string `json:"message"`
+	Timestamp  string `json:"timestamp"`
 }
 
 // --- サーバー全体で共有するグローバルな状態 ---
@@ -58,7 +64,6 @@ var (
 	currentBoard    [9][9]Cell
 	currentSolution [9][9]int
 	nextUserID      = 1
-	// スコアを直接保持する変数
 	currentScores   Score
 )
 
@@ -66,10 +71,7 @@ var (
 func generateNewBoardState() {
 	mu.Lock()
 	defer mu.Unlock()
-	
-	// 新しいゲームが始まったら、スコアをリセットする
 	currentScores = Score{Team1: 0, Team2: 0}
-
 	solution, err := util.GenerateSolvedGrid(1000)
 	if err != nil {
 		log.Printf("Error generating grid: %v", err)
@@ -115,13 +117,29 @@ func broadcastUserListUpdate() {
 		userList = append(userList, *player)
 	}
 
-	// スコアを再計算せず、保持している現在のスコアをそのまま使う
+	// スコアをグローバル変数から直接使用
 	payload := UserListUpdatePayload{Players: userList, Scores: currentScores}
 	message := ServerMessage{Type: "user_list_update", Payload: payload}
 
 	for client := range clients {
 		if err := client.WriteJSON(message); err != nil {
 			log.Printf("User list broadcast error: %v. Removing client.", err)
+			client.Close()
+			delete(clients, client)
+		}
+	}
+}
+
+// チャットメッセージを全員にブロードキャストする
+func broadcastChatMessage(message ChatMessage) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	msg := ServerMessage{Type: "new_chat_message", Payload: message}
+
+	for client := range clients {
+		if err := client.WriteJSON(msg); err != nil {
+			log.Printf("Chat broadcast error: %v. Removing client.", err)
 			client.Close()
 			delete(clients, client)
 		}
@@ -136,23 +154,23 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. 新しいプレイヤーを作成し、リストに登録
 	mu.Lock()
+	playerID := fmt.Sprintf("Player %d", nextUserID)
 	player := &Player{
-		ID:   fmt.Sprintf("Player %d", nextUserID),
+		ID:   playerID,
+		Name: playerID,
 		Team: 1,
 	}
 	nextUserID++
 	clients[conn] = player
 	welcomePayload := WelcomePayload{
-		YourID:     player.ID,
+		YourPlayer: *player,
 		BoardState: currentBoard,
 	}
 	mu.Unlock()
 
-	log.Printf("%s connected. Total clients: %d", player.ID, len(clients))
+	log.Printf("%s (%s) connected.", player.ID, player.Name)
 
-	// 2. 接続が切れた際のクリーンアップ処理
 	defer func() {
 		mu.Lock()
 		delete(clients, conn)
@@ -162,16 +180,13 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		broadcastUserListUpdate()
 	}()
 
-	// 3. 接続クライアントに初期情報をまとめた"welcome"メッセージを送信
 	if err := conn.WriteJSON(ServerMessage{Type: "welcome", Payload: welcomePayload}); err != nil {
 		log.Printf("Could not send welcome message to %s: %v", player.ID, err)
 		return
 	}
 
-	// 4. 全員に最新のメンバー一覧をブロードキャスト
 	broadcastUserListUpdate()
 
-	// 5. クライアントからのメッセージを待つループ
 	for {
 		var msg ClientMessage
 		if err := conn.ReadJSON(&msg); err != nil {
@@ -185,15 +200,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		case "cell_update":
 			payload, _ := msg.Payload.(map[string]interface{})
 			row, col, value := int(payload["row"].(float64)), int(payload["col"].(float64)), int(payload["value"].(float64))
-			
+
 			mu.Lock()
-			// 正解済みのマスと固定マスは編集不可
 			if currentBoard[row][col].Status != "fixed" && currentBoard[row][col].Status != "correct" {
 				if value == 0 {
-					// マスを消すだけではスコアは変動しない
 					currentBoard[row][col] = Cell{Value: 0, Status: "empty", FilledByTeam: 0}
 				} else if value == currentSolution[row][col] {
-					// 正解した場合
 					currentBoard[row][col] = Cell{Value: value, Status: "correct", FilledByTeam: player.Team}
 					if player.Team == 1 {
 						currentScores.Team1++
@@ -201,7 +213,6 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 						currentScores.Team2++
 					}
 				} else {
-					// 間違えた場合
 					currentBoard[row][col] = Cell{Value: value, Status: "wrong", FilledByTeam: player.Team}
 					if player.Team == 1 {
 						currentScores.Team1--
@@ -214,7 +225,6 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 			broadcastBoardState()
 			broadcastUserListUpdate()
-
 		case "change_team":
 			payload, _ := msg.Payload.(map[string]interface{})
 			team := int(payload["team"].(float64))
@@ -222,9 +232,43 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
 				clients[conn].Team = team
 				mu.Unlock()
-				log.Printf("%s changed to Team %d", player.ID, team)
+				log.Printf("%s changed to Team %d", player.Name, team)
 				broadcastUserListUpdate()
 			}
+		case "change_name":
+			payload, ok := msg.Payload.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			newName, ok := payload["name"].(string)
+			if !ok || len(newName) == 0 || len(newName) > 15 {
+				continue
+			}
+
+			mu.Lock()
+			originalName := clients[conn].Name
+			clients[conn].Name = newName
+			mu.Unlock()
+
+			log.Printf("Player name changed: %s -> %s", originalName, newName)
+			broadcastUserListUpdate()
+		case "send_chat_message":
+			payload, ok := msg.Payload.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			chatText, ok := payload["message"].(string)
+			if !ok || len(chatText) == 0 || len(chatText) > 100 {
+				continue
+			}
+
+			chatMessage := ChatMessage{
+				SenderName: player.Name,
+				SenderTeam: player.Team,
+				Message:    chatText,
+				Timestamp:  time.Now().Format("15:04"),
+			}
+			broadcastChatMessage(chatMessage)
 		}
 	}
 }
@@ -232,7 +276,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 func main() {
 	log.Println("Generating initial board...")
 	generateNewBoardState()
-	if (currentBoard == [9][9]Cell{}) {
+	if currentBoard == [9][9]Cell{} {
 		log.Fatal("Failed to generate initial board. Server cannot start.")
 	}
 	http.HandleFunc("/ws", handleConnections)
@@ -243,7 +287,6 @@ func main() {
 	}
 }
 
-// 解答から問題を作成するヘルパー関数
 func createPuzzleFromSolution(solution [9][9]int, difficulty float64) [9][9]int {
 	var puzzle [9][9]int
 	for r := 0; r < 9; r++ {

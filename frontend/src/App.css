@@ -60,14 +60,21 @@ h1 {
 .new-game-button:hover {
   background-color: #218838;
 }
-.user-list-container {
+.sidebar-container {
   position: fixed;
   top: 15px;
   right: 15px;
-  width: 200px;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.user-list-container {
+  position: static;
+  width: auto;
   background-color: white;
   border-radius: 8px;
-  padding: 10px 20px;
+  padding: 15px 20px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   border: 1px solid #eee;
 }
@@ -85,40 +92,54 @@ h1 {
   margin: 0;
 }
 .user-list-container li {
-  padding: 5px 0;
+  padding: 6px 0;
   color: #555;
   font-size: 14px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
 }
-.user-list-container li.me {
+.user-list-container li.me .player-name {
   font-weight: bold;
+  color: #000;
 }
 .team-indicator {
   display: inline-block;
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  margin-right: 8px;
+  margin-right: 4px;
+  flex-shrink: 0;
 }
 .team-indicator.team-1 { background-color: #1976d2; }
 .team-indicator.team-2 { background-color: #2e7d32; }
-.team-buttons button {
-  width: 24px;
-  height: 24px;
-  border: 1px solid #ccc;
-  background: #f0f0f0;
+.player-name {
+  flex-grow: 1;
   cursor: pointer;
-  margin-left: 4px;
-  border-radius: 4px;
 }
-.team-buttons button.active {
-  border-width: 2px;
-  font-weight: bold;
+.user-list-container li.me .player-name:hover {
+  text-decoration: underline;
 }
-.team-buttons button:first-child.active { border-color: #1976d2; }
-.team-buttons button:last-child.active { border-color: #2e7d32; }
+.edit-name-icon {
+  cursor: pointer;
+  font-size: 16px;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  padding: 0 5px;
+}
+.edit-name-icon:hover {
+  opacity: 1;
+}
+.name-edit-form {
+  flex-grow: 1;
+}
+.name-edit-form input {
+  width: 100%;
+  padding: 2px 4px;
+  border: 1px solid #007bff;
+  border-radius: 3px;
+  font-size: 14px;
+}
 .scoreboard-container {
   display: flex;
   justify-content: center;
@@ -149,4 +170,111 @@ h1 {
 .scoreboard-container .team-2 span {
   background-color: #e8f5e9;
   color: #2e7d32;
+}
+.team-selector-container {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  width: 300px;
+  text-align: center;
+}
+.team-selector-container h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 16px;
+  color: #555;
+}
+.team-selector-buttons {
+  display: flex;
+  gap: 10px;
+}
+.team-selector-buttons .team-button {
+  flex: 1;
+  padding: 12px;
+  font-size: 16px;
+  font-weight: bold;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+.team-selector-buttons .team-button.team-1 {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border-color: #bbdefb;
+}
+.team-selector-buttons .team-button.team-1.active {
+  background-color: #1976d2;
+  color: white;
+  border-color: #1976d2;
+  box-shadow: 0 0 10px rgba(25, 118, 210, 0.5);
+}
+.team-selector-buttons .team-button.team-2 {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border-color: #c8e6c9;
+}
+.team-selector-buttons .team-button.team-2.active {
+  background-color: #2e7d32;
+  color: white;
+  border-color: #2e7d32;
+  box-shadow: 0 0 10px rgba(46, 125, 50, 0.5);
+}
+.chat-container {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  height: 300px;
+}
+.chat-messages {
+  flex-grow: 1;
+  padding: 10px;
+  overflow-y: auto;
+}
+.chat-message {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.sender-name {
+  font-weight: bold;
+  margin-right: 8px;
+}
+.sender-name.team-1 { color: #1976d2; }
+.sender-name.team-2 { color: #2e7d32; }
+.message-text {
+  word-wrap: break-word;
+}
+.message-time {
+  font-size: 12px;
+  color: #999;
+  margin-left: 8px;
+}
+.chat-input-form {
+  display: flex;
+  border-top: 1px solid #eee;
+}
+.chat-input-form input {
+  flex-grow: 1;
+  border: none;
+  padding: 10px;
+  font-size: 14px;
+  outline: none;
+  border-bottom-left-radius: 8px;
+}
+.chat-input-form button {
+  border: none;
+  background-color: #007bff;
+  color: white;
+  padding: 0 15px;
+  cursor: pointer;
+  font-weight: bold;
+  border-bottom-right-radius: 8px;
+}
+.chat-input-form button:hover {
+  background-color: #0056b3;
 }

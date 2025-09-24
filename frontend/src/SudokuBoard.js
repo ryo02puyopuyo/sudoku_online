@@ -19,7 +19,7 @@ export default function SudokuBoard({ boardState, onCellClick, onNewGameClick })
         return { ...teamColor, fontWeight: "bold" };
       case "wrong":
         return { background: "#ffcdd2", color: "#c62828", fontWeight: "bold" };
-      default: // empty
+      default:
         return { background: "white" };
     }
   };
@@ -43,27 +43,22 @@ export default function SudokuBoard({ boardState, onCellClick, onNewGameClick })
           消
         </button>
       </div>
-
       <table className="sudoku-board" style={{ borderCollapse: 'collapse', border: '2px solid black' }}>
         <tbody>
           {boardState.map((row, rIdx) => (
             <tr key={rIdx}>
               {row.map((cell, cIdx) => {
-                // セルが編集可能か（"fixed"でも"correct"でもない）を判定
                 const isEditable = cell.status !== 'fixed' && cell.status !== 'correct';
-                
                 return (
                   <td
                     key={cIdx}
-                    // 編集可能な場合のみクリックイベントを発火
                     onClick={() => isEditable && handleCellClick(rIdx, cIdx)}
                     style={{
                       width: '40px',
                       height: '40px',
                       textAlign: 'center',
                       fontSize: '20px',
-                      // 固定マス以外は、常にポインターカーソルを表示
-                      cursor: cell.status === 'fixed' ? 'default' : 'pointer',
+                      cursor: isEditable ? 'pointer' : 'default',
                       ...getCellStyle(cell),
                       borderTop: '1px solid #ccc',
                       borderLeft: '1px solid #ccc',
@@ -79,7 +74,6 @@ export default function SudokuBoard({ boardState, onCellClick, onNewGameClick })
           ))}
         </tbody>
       </table>
-      
       <button onClick={onNewGameClick} className="new-game-button">
         新しい問題
       </button>
