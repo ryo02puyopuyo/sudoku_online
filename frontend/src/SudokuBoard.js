@@ -1,182 +1,88 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
-export default function SudokuBoard({ ws, puzzle, solution }) {
-  const [board, setBoard] = useState(
-    puzzle.map(row => row.map(cell => (cell === 0 ? "" : cell)))
-  );
-  const [statusBoard, setStatusBoard] = useState(
-    puzzle.map(row => row.map(cell => (cell === 0 ? "empty" : "fixed")))
-  );
+export default function SudokuBoard({ boardState, onCellClick, onNewGameClick }) {
   const [selectedNumber, setSelectedNumber] = useState(null);
-  const [showSolution, setShowSolution] = useState(false); // 正解表示切替
 
   const handleCellClick = (r, c) => {
     if (selectedNumber === null) return;
-    if (statusBoard[r][c] === "fixed" || statusBoard[r][c] === "correct") return;
-
-    const value = selectedNumber;
-
-    setBoard(prev => {
-      const newBoard = prev.map(row => [...row]);
-      newBoard[r][c] = value;
-      return newBoard;
-    });
-
-    setStatusBoard(prev => {
-      const newStatus = prev.map(row => [...row]);
-      if (value === "") newStatus[r][c] = "empty";
-      else if (parseInt(value) === solution[r][c]) newStatus[r][c] = "correct";
-      else newStatus[r][c] = "wrong";
-      return newStatus;
-    });
-
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ row: r, col: c, value }));
-    }
+    onCellClick(r, c, selectedNumber);
   };
 
-  useEffect(() => {
-    if (!ws) return;
-    ws.onmessage = (event) => {
-      const { row, col, value } = JSON.parse(event.data);
-      setBoard(prev => {
-        const newBoard = prev.map(r => [...r]);
-        newBoard[row][col] = value;
-        return newBoard;
-      });
-    };
-  }, [ws]);
-
-  const getCellStyle = (status) => {
-    switch (status) {
+  const getCellStyle = (cell) => {
+    switch (cell.status) {
       case "fixed":
+        return { background: "#e9ecef", color: "black", fontWeight: "bold" };
       case "correct":
-        return { background: "#dcdcdc" }; // 灰色
+        const teamColor = cell.filledByTeam === 1
+          ? { background: "#e3f2fd", color: "#1976d2" }
+          : { background: "#e8f5e9", color: "#2e7d32" };
+        return { ...teamColor, fontWeight: "bold" };
       case "wrong":
-        return { background: "#ffcccc" }; // 赤
-      default:
+        return { background: "#ffcdd2", color: "#c62828", fontWeight: "bold" };
+      default: // empty
         return { background: "white" };
     }
   };
 
   return (
     <div>
-      {/* 数字選択UI */}
-      <div style={{ marginBottom: "10px" }}>
-        {[1,2,3,4,5,6,7,8,9].map(num => (
+      <div className="controls">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
           <button
             key={num}
             onClick={() => setSelectedNumber(num)}
-            style={{
-              margin: "2px",
-              background: selectedNumber === num ? "lightblue" : "white"
-            }}
+            className={selectedNumber === num ? 'selected' : ''}
           >
             {num}
           </button>
         ))}
         <button
-          onClick={() => setSelectedNumber("")}
-          style={{
-            margin: "2px",
-            background: selectedNumber === "" ? "lightblue" : "white"
-          }}
+          onClick={() => setSelectedNumber(0)}
+          className={selectedNumber === 0 ? 'selected' : ''}
         >
-          消す
+          消
         </button>
       </div>
 
-      {/* 正解表示切替ボタン */}
-      <button
-        onClick={() => setShowSolution(prev => !prev)}
-        style={{ marginBottom: "10px" }}
-      >
-        {showSolution ? "正解を隠す" : "正解を表示"}
+      <table className="sudoku-board" style={{ borderCollapse: 'collapse', border: '2px solid black' }}>
+        <tbody>
+          {boardState.map((row, rIdx) => (
+            <tr key={rIdx}>
+              {row.map((cell, cIdx) => {
+                // セルが編集可能か（"fixed"でも"correct"でもない）を判定
+                const isEditable = cell.status !== 'fixed' && cell.status !== 'correct';
+                
+                return (
+                  <td
+                    key={cIdx}
+                    // 編集可能な場合のみクリックイベントを発火
+                    onClick={() => isEditable && handleCellClick(rIdx, cIdx)}
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      textAlign: 'center',
+                      fontSize: '20px',
+                      // 固定マス以外は、常にポインターカーソルを表示
+                      cursor: cell.status === 'fixed' ? 'default' : 'pointer',
+                      ...getCellStyle(cell),
+                      borderTop: '1px solid #ccc',
+                      borderLeft: '1px solid #ccc',
+                      borderRight: (cIdx + 1) % 3 === 0 ? '2px solid black' : '1px solid #ccc',
+                      borderBottom: (rIdx + 1) % 3 === 0 ? '2px solid black' : '1px solid #ccc',
+                    }}
+                  >
+                    {cell.value !== 0 ? cell.value : ''}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      
+      <button onClick={onNewGameClick} className="new-game-button">
+        新しい問題
       </button>
-
-      {/* 盤面 */}
-      <div style={{ display: "flex", gap: "50px" }}>
-        {/* プレイヤー盤面 */}
-        <div>
-          <table style={{ borderCollapse: "collapse" }}>
-            <tbody>
-              {board.map((row, rIdx) => (
-                <tr key={rIdx}>
-                  {row.map((cell, cIdx) => (
-                    <td
-                      key={cIdx}
-                      onClick={() => handleCellClick(rIdx, cIdx)}
-                      style={{
-                        width: "35px",
-                        height: "35px",
-                        textAlign: "center",
-                        border: "1px solid black",
-                        cursor:
-                          statusBoard[rIdx][cIdx] === "fixed" ||
-                          statusBoard[rIdx][cIdx] === "correct"
-                            ? "default"
-                            : "pointer",
-                        fontSize: "18px",
-                        fontWeight: "bold",
-                        ...getCellStyle(statusBoard[rIdx][cIdx]),
-                        borderRight:
-                          (cIdx + 1) % 3 === 0 && cIdx !== 8
-                            ? "3px solid black"
-                            : "1px solid black",
-                        borderBottom:
-                          (rIdx + 1) % 3 === 0 && rIdx !== 8
-                            ? "3px solid black"
-                            : "1px solid black"
-                      }}
-                    >
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 正解盤面（表示切替） */}
-        {showSolution && (
-          <div>
-            <h3>正解（デバッグ用）</h3>
-            <table style={{ borderCollapse: "collapse" }}>
-              <tbody>
-                {solution.map((row, rIdx) => (
-                  <tr key={rIdx}>
-                    {row.map((cell, cIdx) => (
-                      <td
-                        key={cIdx}
-                        style={{
-                          width: "35px",
-                          height: "35px",
-                          textAlign: "center",
-                          border: "1px solid black",
-                          fontSize: "18px",
-                          fontWeight: "bold",
-                          background: "#f0f0f0",
-                          borderRight:
-                            (cIdx + 1) % 3 === 0 && cIdx !== 8
-                              ? "3px solid black"
-                              : "1px solid black",
-                          borderBottom:
-                            (rIdx + 1) % 3 === 0 && rIdx !== 8
-                              ? "3px solid black"
-                              : "1px solid black"
-                        }}
-                      >
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
