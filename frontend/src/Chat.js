@@ -18,26 +18,30 @@ export default function Chat({ messages, onSendMessage }) {
 
   return (
     <div className="chat-container">
-      <div className="chat-messages">
-        {messages.map((msg, index) => (
-          <div key={index} className="chat-message">
-            <span className={`sender-name team-${msg.senderTeam}`}>{msg.senderName}</span>
-            <span className="message-text">{msg.message}</span>
-            <span className="message-time">{msg.timestamp}</span>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-      <form onSubmit={handleSubmit} className="chat-input-form">
-        <input
-          type="text"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder="メッセージを入力..."
-          maxLength="100"
-        />
-        <button type="submit">送信</button>
-      </form>
+      <h3>チャット</h3>
+      
+      <>
+        <div className="chat-messages">
+          {messages.map((msg, index) => (
+            <div key={index} className="chat-message">
+              <span className={`sender-name team-${msg.senderTeam}`}>{msg.senderName}</span>
+              <span className="message-text">{msg.message}</span>
+              <span className="message-time">{msg.timestamp}</span>
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+        <form onSubmit={handleSubmit} className="chat-input-form">
+          <input
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder="メッセージを入力..."
+            maxLength="100"
+          />
+          <button type="submit">送信</button>
+        </form>
+      </>
     </div>
   );
 }

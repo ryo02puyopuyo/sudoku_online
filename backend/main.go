@@ -249,22 +249,34 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 			var boardCompleted = false
 			mu.Lock()
-			if currentBoard[row][col].Status != "fixed" && currentBoard[row][col].Status != "correct" {
-				if value == 0 {
-					currentBoard[row][col] = Cell{Value: 0, Status: "empty"}
-				} else if value == currentSolution[row][col] {
-					currentBoard[row][col] = Cell{Value: value, Status: "correct", FilledByTeam: player.Team}
-					if player.Team == 1 {
-						currentScores.Team1++
-					} else {
-						currentScores.Team2++
-					}
+
+			// 現在のセルの状態を取得
+			currentCell := currentBoard[row][col]
+
+			// 1. 編集可能か（固定マスでも正解マスでもない）をチェック
+			if currentCell.Status != "fixed" && currentCell.Status != "correct" {
+
+				// 2. もしセルが既に「間違い」状態で、かつ入力された数字が同じなら、何もしない
+				if currentCell.Status == "wrong" && currentCell.Value == value {
+					// 何もせず、次のメッセージを待つ
 				} else {
-					currentBoard[row][col] = Cell{Value: value, Status: "wrong", FilledByTeam: player.Team}
-					if player.Team == 1 {
-						currentScores.Team1--
+					// 上記の条件に当てはまらない場合のみ、セルを更新
+					if value == 0 {
+						currentBoard[row][col] = Cell{Value: 0, Status: "empty"}
+					} else if value == currentSolution[row][col] {
+						currentBoard[row][col] = Cell{Value: value, Status: "correct", FilledByTeam: player.Team}
+						if player.Team == 1 {
+							currentScores.Team1++
+						} else {
+							currentScores.Team2++
+						}
 					} else {
-						currentScores.Team2--
+						currentBoard[row][col] = Cell{Value: value, Status: "wrong", FilledByTeam: player.Team}
+						if player.Team == 1 {
+							currentScores.Team1--
+						} else {
+							currentScores.Team2--
+						}
 					}
 				}
 

@@ -16,6 +16,8 @@ function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [gameOverResult, setGameOverResult] = useState(null);
   
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   const ws = useRef(null);
 
   useEffect(() => {
@@ -71,11 +73,7 @@ function App() {
   };
 
   const handleCellUpdate = (row, col, value) => sendMessage("cell_update", { row, col, value });
-  
-  const requestNewPuzzle = () => {
-    sendMessage("new_puzzle", {});
-  };
-
+  const requestNewPuzzle = () => sendMessage("new_puzzle", {});
   const handleChangeTeam = (team) => sendMessage("change_team", { team });
   const handleChangeName = (name) => sendMessage("change_name", { name });
   const handleSendMessage = (message) => sendMessage("send_chat_message", { message });
@@ -83,14 +81,18 @@ function App() {
   return (
     <div className="app-container">
       <ResultModal result={gameOverResult} onNewGame={requestNewPuzzle} />
-      <div className="sidebar-container">
-        <UserList
-          users={players}
-          myPlayer={myPlayer}
-          onChangeName={handleChangeName}
-        />
-        <Chat messages={chatMessages} onSendMessage={handleSendMessage} />
-      </div>
+      
+      {isSidebarOpen && (
+        <div className="sidebar-container">
+          <UserList
+            users={players}
+            myPlayer={myPlayer}
+            onChangeName={handleChangeName}
+          />
+          <Chat messages={chatMessages} onSendMessage={handleSendMessage} />
+        </div>
+      )}
+
       <div className="game-area">
         <h1>リアルタイムナンプレ</h1>
         <ScoreBoard scores={scores} />
@@ -105,6 +107,13 @@ function App() {
         ) : (
           isConnected && <p>問題を読み込んでいます...</p>
         )}
+        
+        <button 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+          className="sidebar-toggle-main-button"
+        >
+          {isSidebarOpen ? 'チャット/一覧を隠す' : 'チャット/一覧を表示'}
+        </button>
       </div>
     </div>
   );
