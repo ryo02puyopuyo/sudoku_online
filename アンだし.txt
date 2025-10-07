@@ -26,3 +26,14 @@
 備忘録
 DBEAVER削除とadminer導入し、SQLブラウザで操作
 パスワードハッシュ？
+
+・docker 起動
+sudo docker compose up -d 
+・docker ダウン
+docker-compose down
+・docker 確認
+sudo docker ps
+・docker 入る (-it 対話モード　、　bash 使うシェル)
+docker exec -it <コンテナ名_or_コンテナID> /bin/bash
+・sql　入る
+mysql -u root -p
