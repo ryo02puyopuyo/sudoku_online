@@ -125,6 +125,21 @@ func (g *Game) UpdateCell(row, col, value int, playerTeam int) bool {
 	return isFull
 }
 
+func (g *Game) SetScore(team int, points int) {
+	log.Printf("in setscore")
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	switch team {
+	case 1:
+		g.Scores.Team1 = points
+	case 2:
+		g.Scores.Team2 = points
+	default:
+		// log
+		log.Printf("Invalid team number: %d", team)
+	}
+}
+
 // GetBoard は現在の盤面のスナップショットを返します
 func (g *Game) GetBoard() [9][9]models.Cell {
 	g.mu.Lock()

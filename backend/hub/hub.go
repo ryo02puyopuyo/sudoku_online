@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -155,6 +157,13 @@ func (h *Hub) handleMessage(conn *websocket.Conn, player *models.Player, msg mod
 		if !ok || len(chatText) == 0 || len(chatText) > 100 {
 			return
 		}
+		//チートコマンド (":cheat abc")の形式
+		if strings.HasPrefix(chatText, ":cheat") /*&& player.role == "admin"***/ {
+			log.Printf("%s issued a cheat command: %s", player.Name, chatText)
+			h.handleCheatCommand( /***player,***/ conn, player, chatText)
+			return
+		}
+
 		chatMessage := models.ChatMessage{
 			SenderName: player.Name,
 			SenderTeam: player.Team,
@@ -162,6 +171,52 @@ func (h *Hub) handleMessage(conn *websocket.Conn, player *models.Player, msg mod
 			Timestamp:  time.Now().Format("15:04"),
 		}
 		h.broadcastChatMessage(chatMessage)
+	}
+}
+
+func (h *Hub) handleCheatCommand(conn *websocket.Conn, player *models.Player, command string) {
+	// 先頭の'/'を除去し、スペースで分割
+	log.Printf("in handleCheatCommand: %s", command)
+	command = strings.TrimPrefix(command, ":cheat")
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return // コマンドが空
+	}
+
+	cmd := parts[0]   // コマンド名 (例: "addscore")
+	args := parts[1:] // 引数のスライス (例: ["1", "100"])
+
+	switch cmd {
+	case "setscore":
+		if len(args) != 2 {
+			//h.sendPrivateMessage(conn, "使用法: /setscore <1,2>(int) <points>(int)")
+			return
+		}
+		team, err1 := strconv.Atoi(args[0])
+		points, err2 := strconv.Atoi(args[1])
+		if err1 != nil || err2 != nil {
+			//h.sendPrivateMessage(conn, "引数が不正です。チームとポイントは数字である必要があります。")
+			return
+		}
+		log.Printf("%s is setting Team %d score to %d", player.Name, team, points)
+		h.game.SetScore(team, points)
+		h.broadcastBoardState()
+		h.broadcastUserListUpdate()
+
+	case "godcyclone":
+		//使用者のチームの点数を999に、相手チームを-999にする
+		log.Printf("%s is using godcyclone cheat!", player.Name)
+		h.game.SetScore(player.Team, 999)
+		otherTeam := 1
+		if player.Team == 1 {
+			otherTeam = 2
+		}
+		h.game.SetScore(otherTeam, -999)
+		h.broadcastBoardState()
+		h.broadcastUserListUpdate()
+
+	default:
+		return // 未知のコマンドはとりあえず無視
 	}
 }
 
