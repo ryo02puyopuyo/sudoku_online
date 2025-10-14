@@ -44,6 +44,8 @@ h1 {
 .sudoku-board {
   border-collapse: collapse;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  margin: 0 auto;        /* 横方向の中央寄せ */
+  display: table;        /* border-collapseとの相性が良い */
 }
 .new-game-button {
   margin-top: 20px;
@@ -369,4 +371,186 @@ h1 {
 .final-score-team.team-2 span { color: #2e7d32; }
 .modal-button {
   margin-top: 10px;
+}
+.landing-container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.landing-content {
+  max-width: 600px;
+}
+.landing-title {
+  font-size: 48px;
+  font-weight: 800;
+  color: #333;
+  margin-bottom: 10px;
+}
+.landing-subtitle {
+  font-size: 18px;
+  color: #666;
+  margin-bottom: 40px;
+}
+.landing-buttons {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.main-action-button {
+  width: 280px;
+  padding: 15px;
+  font-size: 16px;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  background-color: #007bff;
+  color: white;
+}
+.main-action-button:hover {
+  background-color: #0056b3;
+}
+
+/* 背景のオーバーレイ */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(30, 30, 30, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* モーダル本体 */
+.modal-content {
+  background: #fff;
+  border-radius: 16px;
+  padding: 2rem;
+  width: 360px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  position: relative;
+  animation: fadeIn 0.3s ease-out;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+}
+
+/* アニメーション */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 閉じるボタン */
+.close-button {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  transition: color 0.2s;
+}
+.close-button:hover {
+  color: #000;
+}
+
+/* タイトル */
+.modal-content h2 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: #333;
+}
+
+/* エラーメッセージ */
+.error-message {
+  color: #e63946;
+  background-color: #ffe8e8;
+  padding: 0.5rem;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+/* 入力欄 */
+.input-group {
+  margin-bottom: 1rem;
+}
+.input-group label {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #444;
+  font-weight: 500;
+}
+.input-group input {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-group input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+  outline: none;
+}
+
+/* ボタンエリア */
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.2rem;
+}
+
+/* 新規登録ボタン */
+.register-button {
+  flex: 1;
+  margin-right: 0.5rem;
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  color: white;
+  border: none;
+  padding: 0.6rem;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.2s;
+}
+.register-button:hover {
+  opacity: 0.9;
+  transform: scale(1.03);
+}
+
+/* ログインボタン */
+.login-button {
+  flex: 1;
+  margin-left: 0.5rem;
+  background: linear-gradient(135deg, #2196f3, #1565c0);
+  color: white;
+  border: none;
+  padding: 0.6rem;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.2s;
+}
+.login-button:hover {
+  opacity: 0.9;
+  transform: scale(1.03);
 }
