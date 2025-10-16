@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"crypto/rand"
@@ -61,8 +61,8 @@ func hashToken(token string) string {
 }
 
 // setupDatabase はDBへの接続を確立し、マイグレーションを行います
-func setupDatabase() (*gorm.DB, error) {
-	err := godotenv.Load("../.env")
+func SetupDatabase() (*gorm.DB, error) {
+	err := godotenv.Load("./.env")
 	if err != nil {
 		log.Println("注意: .envファイルが読み込めませんでした。")
 	}
@@ -87,59 +87,11 @@ func setupDatabase() (*gorm.DB, error) {
 	return db, nil
 }
 
-func main() {
-	db, err := setupDatabase()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if os.Getenv("APP_ENV") == "development" {
-		fmt.Println("これは開発環境用の処理です。")
-		// 管理者ユーザーを作成（既に存在する場合はエラーが出ますが、テスト用なので問題ありません）
-		//_, err := createUser(db, "admin", "admin", "admin")
-		//if err != nil {
-		//	fmt.Println(err) // エラー内容を表示
-		//} else {
-		//	fmt.Println("管理者ユーザー 'admin' を作成しました。")
-		//}
-		//runDevelopmentTests(db)
-
-		recordMatchResult(db, "admin", false) // 例: admin の試合結果を勝利として記録
-	}
-}
-
 // 開発用のテスト関数
-func runDevelopmentTests(db *gorm.DB) {
-	testUsername := "hard_delete_test"
-	testPassword := "password123"
-
-	// 事前にユーザーを削除
-	deleteUser(db, testUsername)
-
-	// 1. ユーザーを作成
-	fmt.Printf("\n--- ユーザー '%s' を作成します ---\n", testUsername)
-	_, err := createUser(db, testUsername, testPassword, "user")
-	if err != nil {
-		log.Fatalf("ユーザー作成が予期せず失敗しました: %v", err)
-	}
-	fmt.Println("ユーザー作成成功！")
-	printUserDetails(db, testUsername)
-
-	// 2. ユーザーを物理削除
-	fmt.Printf("\n--- ユーザー '%s' を物理削除します ---\n", testUsername)
-	err = deleteUser(db, testUsername)
-	if err != nil {
-		log.Fatalf("ユーザー削除が予期せず失敗しました: %v", err)
-	}
-	fmt.Println("ユーザー削除成功！")
-
-	// 3. 削除されたことを確認（見つからないはず）
-	printUserDetails(db, testUsername)
-}
 
 // --- データベース操作関数 ---
 
-func createUser(db *gorm.DB, username, password, role string) (*User, error) {
+func RegisterUser(db *gorm.DB, username, password, role string) (*User, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("パスワードのハッシュ化に失敗: %w", err)
@@ -160,7 +112,7 @@ func createUser(db *gorm.DB, username, password, role string) (*User, error) {
 	return user, nil
 }
 
-func loginUser(db *gorm.DB, username, password string) (string, error) {
+func LoginUser(db *gorm.DB, username, password string) (string, error) {
 	var user User
 	if err := db.Where("username = ?", username).First(&user).Error; err != nil {
 		return "", fmt.Errorf("ユーザーが見つからないか、パスワードが違います")
@@ -184,7 +136,7 @@ func loginUser(db *gorm.DB, username, password string) (string, error) {
 	return token, nil
 }
 
-func logoutUser(db *gorm.DB, token string) error {
+func LogoutUser(db *gorm.DB, token string) error {
 	tokenHash := hashToken(token)
 	result := db.Where("token_hash = ?", tokenHash).Delete(&UserToken{})
 	if result.Error != nil {
@@ -196,7 +148,7 @@ func logoutUser(db *gorm.DB, token string) error {
 	return nil
 }
 
-func findUserByToken(db *gorm.DB, token string) (*User, error) {
+func FindUserByToken(db *gorm.DB, token string) (*User, error) {
 	tokenHash := hashToken(token)
 	var userToken UserToken
 	err := db.Where("token_hash = ?", tokenHash).First(&userToken).Error
@@ -217,7 +169,7 @@ func findUserByToken(db *gorm.DB, token string) (*User, error) {
 	return &user, nil
 }
 
-func deleteUser(db *gorm.DB, username string) error {
+func DeleteUser(db *gorm.DB, username string) error {
 	result := db.Unscoped().Where("username = ?", username).Delete(&User{})
 	if result.Error != nil {
 		return fmt.Errorf("ユーザーの削除に失敗: %w", result.Error)
@@ -225,7 +177,7 @@ func deleteUser(db *gorm.DB, username string) error {
 	return nil
 }
 
-func printUserDetails(db *gorm.DB, username string) {
+func PrintUserDetails(db *gorm.DB, username string) {
 	var u User
 	err := db.Where("username = ?", username).First(&u).Error
 	if err != nil {
@@ -241,7 +193,7 @@ func printUserDetails(db *gorm.DB, username string) {
 }
 
 // ▼▼▼ これがご要望の、特定のユーザーの戦績を更新する関数です ▼▼▼
-func recordMatchResult(db *gorm.DB, username string, didWin bool) error {
+func RecordMatchResult(db *gorm.DB, username string, didWin bool) error {
 	var user User
 	// まず、更新対象のユーザーをユーザー名でDBから取得
 	if err := db.Where("username = ?", username).First(&user).Error; err != nil {
@@ -259,4 +211,31 @@ func recordMatchResult(db *gorm.DB, username string, didWin bool) error {
 		return fmt.Errorf("試合結果の更新に失敗: %w", err)
 	}
 	return nil
+}
+
+// CheckUser はユーザー認証を行います (トークン発行なし)。
+func CheckUser(db *gorm.DB, username, password string) (bool, error) {
+	var user User
+	// 1. ユーザー名でユーザーを取得
+	if err := db.Where("username = ?", username).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// ユーザーが見つからない場合は、セキュリティのため「ユーザー名またはパスワードが違います」と返す
+			return false, fmt.Errorf("ユーザー名またはパスワードが違います")
+		}
+		// その他のDBエラー
+		return false, fmt.Errorf("データベースエラー: %w", err)
+	}
+
+	// 2. パスワードのハッシュを比較
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			// パスワードが一致しない場合も、同様に「ユーザー名またはパスワードが違います」と返す
+			return false, fmt.Errorf("ユーザー名またはパスワードが違います")
+		}
+		// その他のbcryptエラー
+		return false, fmt.Errorf("認証エラー: %w", err)
+	}
+
+	// 3. 認証成功
+	return true, nil
 }

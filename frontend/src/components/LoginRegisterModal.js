@@ -32,6 +32,7 @@ export default function LoginRegisterModal({ isOpen, onClose }) {
     }
     try {
       const response = await axios.post('/api/login', { username, password });
+      alert('ログイン出来ました');
       onClose();
     } catch (err) {
       setError('ログインに失敗しました。ユーザー名またはパスワードを確認してください。');
