@@ -1,50 +1,50 @@
 package main
 
 import (
-	// ← これを追加！
 	"log"
 	"net/http"
 
+	"github.com/gorilla/mux"
+	"github.com/rs/cors"
+
+	"github.com/ryo02puyopuyo/sudoku_online/backend/api"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/db"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/game"
-	"github.com/ryo02puyopuyo/sudoku_online/backend/handler"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/hub"
+	"github.com/ryo02puyopuyo/sudoku_online/backend/middleware"
 )
 
 func main() {
-	// 1. ゲーム状態管理オブジェクトを生成
-	gameInstance := game.NewGame()
-
-	// 2. WebSocketハブを生成し、ゲームインスタンスを渡す
-	hubInstance := hub.NewHub(gameInstance)
-
-	//db接続
-
-	database, err := db.SetupDatabase()
+	dbConn, err := db.Connect()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("DB接続失敗: %v", err)
 	}
 
-	// 3. HTTPルートを設定
-	http.HandleFunc("/ws", hubInstance.ServeWs) // WebSocket接続をハブに任せる
-	http.Handle("/", http.FileServer(http.Dir("./static")))
-	http.HandleFunc("/api/test", handler.TestHandler)
-	//test
-	http.HandleFunc("/api/check", func(w http.ResponseWriter, r *http.Request) {
-		handler.CheckHandler(w, r, database)
-	})
+	gameInstance := game.NewGame()
+	hubInstance := hub.NewHub(gameInstance)
+	apiHandlers := &api.API{DB: dbConn}
+	authMiddleware := &middleware.Auth{DB: dbConn}
 
-	http.HandleFunc("/api/register", func(w http.ResponseWriter, r *http.Request) {
-		handler.RegisterHandler(w, r, database)
-	})
-	//まだ
-	http.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {
-		handler.LoginHandler(w, r, database)
-	})
+	r := mux.NewRouter()
 
-	// 4. サーバーを起動
-	log.Println("Server running on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	apiRouter := r.PathPrefix("/api").Subrouter()
+	apiRouter.HandleFunc("/register", apiHandlers.RegisterHandler).Methods("POST", "OPTIONS")
+	apiRouter.HandleFunc("/login", apiHandlers.LoginHandler).Methods("POST", "OPTIONS")
+	apiRouter.HandleFunc("/test", apiHandlers.TestHandler).Methods("POST", "OPTIONS")
+
+	r.Handle("/ws", authMiddleware.Optional(http.HandlerFunc(hubInstance.ServeWs)))
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
+
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type"},
+		AllowCredentials: true, // Cookieを送受信するために必須
+	})
+	handler := c.Handler(r)
+
+	log.Println("サーバーがポート8080で起動しました")
+	if err := http.ListenAndServe(":8080", handler); err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
 }

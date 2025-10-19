@@ -40,3 +40,6 @@ sudo docker ps
 docker exec -it <コンテナ名_or_コンテナID> /bin/bash
 ・sql　入る
 mysql -u root -p
+
+git reset --hard <commit_hash>
+git clean -fd
