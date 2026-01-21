@@ -40,6 +40,19 @@ sudo docker ps
 docker exec -it <コンテナ名_or_コンテナID> /bin/bash
 ・sql　入る
 mysql -u root -p
+・フロント、バックエンド起動
+cd frontend 
+npm run start:all
+・データベースをブラウザで確認
+
+データベースadminer　ログイン
+データベース種類	mysql
+サーバー	db
+ユーザー名	root
+パスワード	root_password
+データベース　sudoku_db
+
+
 
 git reset --hard <commit_hash>
 git clean -fd

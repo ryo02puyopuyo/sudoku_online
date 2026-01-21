@@ -32,6 +32,9 @@ func main() {
 	apiRouter.HandleFunc("/login", apiHandlers.LoginHandler).Methods("POST", "OPTIONS")
 	apiRouter.HandleFunc("/test", apiHandlers.TestHandler).Methods("POST", "OPTIONS")
 
+	//tuika
+	apiRouter.Handle("/me", authMiddleware.Optional(http.HandlerFunc(apiHandlers.MeHandler))).Methods("GET", "OPTIONS")
+
 	r.Handle("/ws", authMiddleware.Optional(http.HandlerFunc(hubInstance.ServeWs)))
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
 

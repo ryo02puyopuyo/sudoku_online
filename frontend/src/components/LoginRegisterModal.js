@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom'; // ★これが必要です
 
 export default function LoginRegisterModal({ isOpen, onClose }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const navigate = useNavigate(); // 修正点：追加 ゲームに遷移するために必要
 
   if (!isOpen) {
     return null;
@@ -31,9 +33,12 @@ export default function LoginRegisterModal({ isOpen, onClose }) {
       return;
     }
     try {
-      const response = await axios.post('/api/login', { username, password });
-      alert('ログイン出来ました');
+      // 修正点：withCredentialsオプションを追加（または後述のグローバル設定を行う）
+      await axios.post('/api/login', { username, password }, { withCredentials: true });
+      
+      // 修正点：成功したらモーダルを閉じてゲーム画面へ遷移
       onClose();
+      navigate('/game'); 
     } catch (err) {
       setError('ログインに失敗しました。ユーザー名またはパスワードを確認してください。');
     }

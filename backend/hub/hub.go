@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ryo02puyopuyo/sudoku_online/backend/db"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/game"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/models"
 
@@ -42,17 +43,41 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 新しいプレイヤーを作成
+	var player *models.Player
+
+	// --- 【修正点】ユーザー識別ロジックの追加 ---
+	// middleware/auth.go でセットされた "user" を Context から取り出します
+	// db.User 型への型アサーションを行っています
+	if user, ok := r.Context().Value("user").(*db.User); ok {
+		// 【登録ユーザー】
+		// DBから取得した本物のユーザー名を使用
+		player = &models.Player{
+			ID:   fmt.Sprintf("user-%d", user.ID), // IDをプレフィックス付きにしてゲストと区別
+			Name: user.Username,
+			Team: 1,
+		}
+		log.Printf("[WebSocket] 登録ユーザー接続: %s (ID: %d)", user.Username, user.ID)
+	} else {
+		// 【ゲストユーザー】
+		// ログインしていない場合は、従来の Guest ID 生成ロジックを使用
+		h.mu.Lock()
+		guestName := fmt.Sprintf("Guest%d", h.nextUserID)
+		player = &models.Player{
+			ID:   guestName,
+			Name: guestName,
+			Team: 1,
+		}
+		h.nextUserID++
+		h.mu.Unlock()
+		log.Printf("[WebSocket] ゲスト接続: %s", guestName)
+	}
+	// ------------------------------------------
+
 	h.mu.Lock()
-	playerID := fmt.Sprintf("Player %d", h.nextUserID)
-	player := &models.Player{ID: playerID, Name: playerID, Team: 1}
-	h.nextUserID++
 	h.clients[conn] = player
 	h.mu.Unlock()
 
-	log.Printf("%s (%s) connected.", player.ID, player.Name)
-
-	// 接続が終了した際のクリーンアップ
+	// 接続終了時のクリーンアップ（既存のまま）
 	defer func() {
 		h.mu.Lock()
 		delete(h.clients, conn)
@@ -62,28 +87,15 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 		h.broadcastUserListUpdate()
 	}()
 
-	// Welcomeメッセージを送信
+	// Welcomeメッセージの送信（新しい player 情報を含める）
 	welcomePayload := models.WelcomePayload{
 		YourPlayer: *player,
 		BoardState: h.game.GetBoard(),
 	}
-	if err := conn.WriteJSON(models.ServerMessage{Type: "welcome", Payload: welcomePayload}); err != nil {
-		log.Printf("Welcome message error: %v", err)
-		return
-	}
+	conn.WriteJSON(models.ServerMessage{Type: "welcome", Payload: welcomePayload})
 
-	// 接続時にゲームが終了していたら、その結果を送信
-	isOver, gameOverPayload := h.game.GetGameOverState()
-	if isOver {
-		if err := conn.WriteJSON(models.ServerMessage{Type: "game_over", Payload: *gameOverPayload}); err != nil {
-			log.Printf("Could not send late game_over message to %s", player.ID)
-		}
-	}
-
-	// 全員に最新のユーザーリストを送信
 	h.broadcastUserListUpdate()
 
-	// クライアントからのメッセージを待ち受けるループ
 	for {
 		var msg models.ClientMessage
 		if err := conn.ReadJSON(&msg); err != nil {

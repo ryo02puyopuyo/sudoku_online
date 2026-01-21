@@ -86,3 +86,29 @@ func (a *API) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "ログイン成功"})
 }
+
+// 【修正点】現在のユーザー情報を返すエンドポイント
+func (a *API) MeHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// コンテキストからユーザー情報を取得
+	user, ok := r.Context().Value("user").(*db.User)
+	if !ok {
+		// 未ログインの場合
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "guest",
+			"msg":    "ログインしていません",
+		})
+		return
+	}
+
+	// ログイン済みの場合はユーザー詳細を返す
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":   "authenticated",
+		"id":       user.ID,
+		"username": user.Username,
+		"role":     user.Role,
+		"wins":     user.Wins, // 現在の勝利数など
+	})
+}

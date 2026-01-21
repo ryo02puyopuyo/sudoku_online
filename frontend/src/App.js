@@ -5,6 +5,11 @@ import Landing from './pages/Landing';
 import Game from './pages/Game';
 import './App.css';
 
+// これを1行追加するだけで、全てのAPIリクエストにCookieが自動添付されます
+axios.defaults.withCredentials = true;
+// ベースURLを設定しておくと便利です
+axios.defaults.baseURL = 'http://localhost:8080';
+
 function App() {
 
 
