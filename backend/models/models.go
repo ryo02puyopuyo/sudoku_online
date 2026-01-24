@@ -1,5 +1,6 @@
 package models
 
+// 　ゲーム使われるモデル群
 type ServerMessage struct {
 	Type    string      `json:"type"`
 	Payload interface{} `json:"payload"`
@@ -12,6 +13,7 @@ type Player struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Team int    `json:"team"`
+	Role string `json:"role"`
 }
 type Cell struct {
 	Value        int    `json:"value"`

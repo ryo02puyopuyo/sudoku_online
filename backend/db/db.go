@@ -129,3 +129,11 @@ func hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }
+
+func DeleteUserToken(db *gorm.DB, userID uint) error {
+	result := db.Where("user_id = ?", userID).Delete(&UserToken{})
+	if result.Error != nil {
+		return fmt.Errorf("トークン削除失敗: %w", result.Error)
+	}
+	return nil
+}

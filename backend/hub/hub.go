@@ -12,6 +12,7 @@ import (
 	"github.com/ryo02puyopuyo/sudoku_online/backend/db"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/game"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/models"
+	"gorm.io/gorm"
 
 	"github.com/gorilla/websocket"
 )
@@ -20,14 +21,17 @@ type Hub struct {
 	mu         sync.Mutex
 	clients    map[*websocket.Conn]*models.Player
 	game       *game.Game // Gameの状態への参照を持つ
+	DB         *gorm.DB
 	upgrader   websocket.Upgrader
 	nextUserID int
 }
 
-func NewHub(game *game.Game) *Hub {
+// 修正点: 引数に dbConn を追加
+func NewHub(game *game.Game, dbConn *gorm.DB) *Hub {
 	return &Hub{
 		clients: make(map[*websocket.Conn]*models.Player),
 		game:    game,
+		DB:      dbConn,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
@@ -44,10 +48,9 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var player *models.Player
+	var registeredUserID uint = 0 // 修正点: deferで使うためにIDを保持
 
 	// --- 【修正点】ユーザー識別ロジックの追加 ---
-	// middleware/auth.go でセットされた "user" を Context から取り出します
-	// db.User 型への型アサーションを行っています
 	if user, ok := r.Context().Value("user").(*db.User); ok {
 		// 【登録ユーザー】
 		// DBから取得した本物のユーザー名を使用
@@ -55,17 +58,19 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 			ID:   fmt.Sprintf("user-%d", user.ID), // IDをプレフィックス付きにしてゲストと区別
 			Name: user.Username,
 			Team: 1,
+			Role: user.Role,
 		}
+		registeredUserID = user.ID
 		log.Printf("[WebSocket] 登録ユーザー接続: %s (ID: %d)", user.Username, user.ID)
 	} else {
 		// 【ゲストユーザー】
-		// ログインしていない場合は、従来の Guest ID 生成ロジックを使用
 		h.mu.Lock()
 		guestName := fmt.Sprintf("Guest%d", h.nextUserID)
 		player = &models.Player{
 			ID:   guestName,
 			Name: guestName,
 			Team: 1,
+			Role: "guest",
 		}
 		h.nextUserID++
 		h.mu.Unlock()
@@ -77,12 +82,19 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 	h.clients[conn] = player
 	h.mu.Unlock()
 
-	// 接続終了時のクリーンアップ（既存のまま）
+	// 接続終了時のクリーンアップ
 	defer func() {
 		h.mu.Lock()
 		delete(h.clients, conn)
 		h.mu.Unlock()
 		conn.Close()
+
+		// 【重要】プレイヤーが抜けるとDBのトークンを削除し、再ログインを強制する
+		if registeredUserID != 0 {
+			log.Printf("registerd user disconnecting, deleting token: userID=%d", registeredUserID)
+			db.DeleteUserToken(h.DB, registeredUserID)
+		}
+
 		log.Printf("%s disconnected.", player.ID)
 		h.broadcastUserListUpdate()
 	}()
@@ -171,6 +183,10 @@ func (h *Hub) handleMessage(conn *websocket.Conn, player *models.Player, msg mod
 		}
 		//チートコマンド (":cheat abc")の形式
 		if strings.HasPrefix(chatText, ":cheat") /*&& player.role == "admin"***/ {
+			if player.Role == "admin" {
+				log.Printf("admin cheat  %s", player.Name)
+				return
+			}
 			log.Printf("%s issued a cheat command: %s", player.Name, chatText)
 			h.handleCheatCommand( /***player,***/ conn, player, chatText)
 			return
@@ -277,4 +293,23 @@ func (h *Hub) broadcastChatMessage(payload models.ChatMessage) {
 func (h *Hub) broadcastNewGameStarted() {
 	msg := models.ServerMessage{Type: "new_game_started"}
 	h.broadcastToAll(msg)
+}
+
+// サーバー監視用の関数軍
+func (h *Hub) GetConnectionCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.clients)
+}
+
+// 修正点: プレイヤー情報のスライスを返す (読み取り専用)
+func (h *Hub) GetPlayerList() []models.Player {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	var list []models.Player
+	for _, p := range h.clients {
+		list = append(list, *p)
+	}
+	return list
 }
