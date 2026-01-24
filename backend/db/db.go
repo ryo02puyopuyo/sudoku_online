@@ -49,10 +49,16 @@ func Connect() (*gorm.DB, error) {
 	if dsn == "" {
 		return nil, fmt.Errorf("エラー: DB_DSN が設定されていません")
 	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+
+	// 修正ポイント: PrepareStmt を false に設定してプーラーとの衝突を防ぐ
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		PrepareStmt: false,
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("DB接続失敗: %w", err)
 	}
+
 	err = db.AutoMigrate(&User{}, &UserToken{})
 	if err != nil {
 		return nil, fmt.Errorf("マイグレーション失敗: %w", err)
