@@ -26,6 +26,7 @@ type UserListUpdatePayload struct {
 	Players []Player `json:"players"`
 	Scores  Score    `json:"scores"`
 }
+
 type WelcomePayload struct {
 	YourPlayer Player     `json:"yourPlayer"`
 	BoardState [9][9]Cell `json:"boardState"`
