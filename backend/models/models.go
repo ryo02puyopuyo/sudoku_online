@@ -19,6 +19,7 @@ type Cell struct {
 	Value        int    `json:"value"`
 	Status       string `json:"status"`
 	FilledByTeam int    `json:"filledByTeam"`
+	IsHotSpot    bool   `json:"isHotSpot"`
 }
 type Score struct {
 	Team1 int `json:"team1"`

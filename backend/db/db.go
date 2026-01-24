@@ -4,16 +4,19 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
-	sqlmysql "github.com/go-sql-driver/mysql"
+	// 削除: sqlmysql "github.com/go-sql-driver/mysql"
+	// 削除: "gorm.io/driver/mysql"
+
+	// 追加: PostgreSQL用のドライバ
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -46,7 +49,7 @@ func Connect() (*gorm.DB, error) {
 	if dsn == "" {
 		return nil, fmt.Errorf("エラー: DB_DSN が設定されていません")
 	}
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("DB接続失敗: %w", err)
 	}
@@ -66,8 +69,9 @@ func CreateUser(db *gorm.DB, username, password, role string) (*User, error) {
 	user := &User{Username: username, PasswordHash: string(hashedPassword), Role: role}
 	result := db.Create(user)
 	if result.Error != nil {
-		var mysqlErr *sqlmysql.MySQLError
-		if errors.As(result.Error, &mysqlErr) && mysqlErr.Number == 1062 {
+		// 修正: PostgreSQL向けのエラー判定
+		// 文字列判定、または pgconn.PgError を使うのが一般的です
+		if strings.Contains(result.Error.Error(), "duplicate key value") || strings.Contains(result.Error.Error(), "23505") {
 			return nil, fmt.Errorf("ユーザー名 '%s' は既に使用されています", username)
 		}
 		return nil, fmt.Errorf("ユーザー作成失敗: %w", result.Error)

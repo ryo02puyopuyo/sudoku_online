@@ -44,44 +44,67 @@ func (g *Game) Reset() {
 	puzzle := createPuzzleFromSolution(solution, 0.5)
 
 	var board [9][9]models.Cell
+	var emptyCellCoords [][2]int // ★ホットスポット選出用の空マスリスト
+
 	for r := 0; r < 9; r++ {
 		for c := 0; c < 9; c++ {
 			if puzzle[r][c] != 0 {
-				board[r][c] = models.Cell{Value: puzzle[r][c], Status: "fixed"}
+				board[r][c] = models.Cell{Value: puzzle[r][c], Status: "fixed", IsHotSpot: false}
 			} else {
-				board[r][c] = models.Cell{Value: 0, Status: "empty"}
+				board[r][c] = models.Cell{Value: 0, Status: "empty", IsHotSpot: false}
+				// プレイヤーが入力するマスをリストに追加
+				emptyCellCoords = append(emptyCellCoords, [2]int{r, c})
 			}
 		}
 	}
+
+	// ★修正点：ホットスポットをランダムに3か所設定
+	// リストをシャッフルして先頭の3つをホットスポットにする
+	rand.Shuffle(len(emptyCellCoords), func(i, j int) {
+		emptyCellCoords[i], emptyCellCoords[j] = emptyCellCoords[j], emptyCellCoords[i]
+	})
+
+	for i := 0; i < 3 && i < len(emptyCellCoords); i++ {
+		r, c := emptyCellCoords[i][0], emptyCellCoords[i][1]
+		board[r][c].IsHotSpot = true
+	}
+
 	g.Board = board
 	log.Println("A new board state has been generated and game state has been reset.")
 }
 
 // UpdateCell はセルの更新ロジックを担当し、ゲームが終了したかどうかを返します
-func (g *Game) UpdateCell(row, col, value int, playerTeam int) bool {
+func (g *Game) UpdateCell(row, col, value int, playerTeam int) (bool, bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	currentCell := g.Board[row][col]
+	isHotSpotHit := false
 
 	// 編集不可のセルは更新しない
 	if currentCell.Status == "fixed" || currentCell.Status == "correct" {
-		return false
+		return false, false
 	}
 	// 間違っていて同じ数字が入力された場合は何もしない
 	if currentCell.Status == "wrong" && currentCell.Value == value {
-		return false
+		return false, false
 	}
 
 	// セル状態を更新
 	if value == 0 {
 		g.Board[row][col] = models.Cell{Value: 0, Status: "empty"}
 	} else if value == g.Solution[row][col] {
-		g.Board[row][col] = models.Cell{Value: value, Status: "correct", FilledByTeam: playerTeam}
+		g.Board[row][col] = models.Cell{Value: value, Status: "correct", FilledByTeam: playerTeam, IsHotSpot: currentCell.IsHotSpot}
+
+		points := 1
+		if currentCell.IsHotSpot {
+			isHotSpotHit = true
+			points = 3
+		}
 		if playerTeam == 1 {
-			g.Scores.Team1++
+			g.Scores.Team1 += points
 		} else {
-			g.Scores.Team2++
+			g.Scores.Team2 += points
 		}
 	} else {
 		g.Board[row][col] = models.Cell{Value: value, Status: "wrong", FilledByTeam: playerTeam}
@@ -122,7 +145,7 @@ func (g *Game) UpdateCell(row, col, value int, playerTeam int) bool {
 		log.Println("Game Over!")
 	}
 
-	return isFull
+	return isFull, isHotSpotHit
 }
 
 func (g *Game) SetScore(team int, points int) {

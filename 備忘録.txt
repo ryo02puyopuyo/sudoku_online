@@ -5,6 +5,7 @@
 ・チートコマンド実装　（一部実装）
 ・privatemessage、teammessage
 ・ロビーを立てて、複数ゲーム同時進行
+・ホットスポット3点　（完了）
 
 
 やってること
@@ -26,14 +27,6 @@ cd frontend
 npm run start:all
 ・データベースをブラウザで確認
 http://localhost:8081/
-
-データベースadminer　ログイン
-データベース種類	mysql
-サーバー	db
-ユーザー名	root
-パスワード	root_password
-データベース　sudoku_db
-
 
 
 git reset --hard <commit_hash>

@@ -135,10 +135,20 @@ func (h *Hub) handleMessage(conn *websocket.Conn, player *models.Player, msg mod
 		payload, _ := msg.Payload.(map[string]interface{})
 		row, col, value := int(payload["row"].(float64)), int(payload["col"].(float64)), int(payload["value"].(float64))
 
-		boardCompleted := h.game.UpdateCell(row, col, value, player.Team)
+		boardCompleted, isHotSpotHit := h.game.UpdateCell(row, col, value, player.Team)
 
 		h.broadcastBoardState()
 		h.broadcastUserListUpdate()
+
+		if isHotSpotHit {
+			chatMessage := models.ChatMessage{
+				SenderName: "SYSTEM",
+				SenderTeam: 0, // システム用カラー（フロントで設定可能）
+				Message:    fmt.Sprintf("Team %d get hotspot!(+3points)", player.Team),
+				Timestamp:  time.Now().Format("15:04"),
+			}
+			h.broadcastChatMessage(chatMessage)
+		}
 
 		if boardCompleted {
 			_, gameOverPayload := h.game.GetGameOverState()

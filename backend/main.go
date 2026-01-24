@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 
 	"github.com/ryo02puyopuyo/sudoku_online/backend/api"
@@ -19,6 +20,7 @@ import (
 )
 
 func main() {
+	godotenv.Load()
 	dbConn, err := db.Connect()
 	if err != nil {
 		log.Fatalf("DB接続失敗: %v", err)
@@ -40,20 +42,34 @@ func main() {
 	r.Handle("/ws", authMiddleware.Optional(http.HandlerFunc(hubInstance.ServeWs)))
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
 
+	// 2. ポート番号の動的化
+	// Render 等の本番環境では PORT 環境変数が自動で割り振られます
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // ローカル用のデフォルト値
+	}
+
+	// 3. CORS 設定の外部化
+	// 本番ドメインを環境変数 CORS_ORIGIN から読み取れるようにします
+	allowedOrigin := os.Getenv("CORS_ORIGIN")
+	if allowedOrigin == "" {
+		allowedOrigin = "http://localhost:3000" // ローカル用のデフォルト値
+	}
+
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowedOrigins:   []string{allowedOrigin},
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type"},
-		AllowCredentials: true, // Cookieを送受信するために必須
+		AllowCredentials: true,
 	})
 	handler := c.Handler(r)
 
 	//デバッグツール
 	go startAdminCLI(hubInstance, gameInstance) // goroutineで起動
 
-	//start server
-	log.Println("サーバーがポート8080で起動しました")
-	if err := http.ListenAndServe(":8080", handler); err != nil {
+	// 4. サーバー起動
+	log.Printf("サーバーがポート %s で起動しました (Origin: %s)", port, allowedOrigin)
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
 }

@@ -8,20 +8,39 @@ export default function SudokuBoard({ boardState, onCellClick, onNewGameClick })
     onCellClick(r, c, selectedNumber);
   };
 
-  const getCellStyle = (cell) => {
+const getCellStyle = (cell) => {
+    let baseStyle = {};
+    
+    // 既存のステータス別スタイル
     switch (cell.status) {
       case "fixed":
-        return { background: "#e9ecef", color: "black", fontWeight: "bold" };
+        baseStyle = { background: "#e9ecef", color: "black", fontWeight: "bold" };
+        break;
       case "correct":
         const teamColor = cell.filledByTeam === 1
           ? { background: "#e3f2fd", color: "#1976d2" }
           : { background: "#e8f5e9", color: "#2e7d32" };
-        return { ...teamColor, fontWeight: "bold" };
+        baseStyle = { ...teamColor, fontWeight: "bold" };
+        break;
       case "wrong":
-        return { background: "#ffcdd2", color: "#c62828", fontWeight: "bold" };
+        baseStyle = { background: "#ffcdd2", color: "#c62828", fontWeight: "bold" };
+        break;
       default:
-        return { background: "white" };
+        baseStyle = { background: "white" };
     }
+
+    // 【修正点】ホットスポット用の装飾を追加
+    if (cell.isHotSpot) {
+      // まだ入力されていないホットスポットは少し黄色く光らせる
+      if (cell.status === "empty") {
+        baseStyle.background = "#fffde7"; 
+      }
+      // 強調するための太い枠線（box-shadowを使うと既存のborderを壊しません）
+      baseStyle.boxShadow = "inset 0 0 0 3px #ffd700"; 
+      baseStyle.zIndex = 1; // 枠線を最前面に
+    }
+
+    return baseStyle;
   };
 
   return (
