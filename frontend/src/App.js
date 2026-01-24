@@ -8,7 +8,7 @@ import './App.css';
 // これを1行追加するだけで、全てのAPIリクエストにCookieが自動添付されます
 axios.defaults.withCredentials = true;
 // ベースURLを設定しておくと便利です
-axios.defaults.baseURL = 'http://localhost:8080';
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
 function App() {
 
