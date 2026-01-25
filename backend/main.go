@@ -57,9 +57,11 @@ func main() {
 	}
 
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{allowedOrigin},
-		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
-		AllowedHeaders:   []string{"Content-Type"},
+		AllowedOrigins: []string{allowedOrigin},
+		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+		// ★ Authorization ヘッダーを許可リストに追加（これがないとエラーになります）
+		AllowedHeaders: []string{"Content-Type", "Authorization"},
+		// トークン方式では Cookie を使わないため false でも動きますが、既存の互換性のために一旦 true のままでも問題ありません
 		AllowCredentials: true,
 	})
 	handler := c.Handler(r)

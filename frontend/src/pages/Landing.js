@@ -8,6 +8,13 @@ export default function Landing() {
 const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
 
+  // ★ 変更点：ゲスト参加用の関数を作成
+    const handleGuestJoin = () => {
+        // localStorage を空にして、確実にゲストとして扱う
+        localStorage.removeItem('auth_token');
+        navigate('/game');
+    };
+
     // テストボタンのクリック処理
   const handleTestClick = async () => {
     try {
@@ -28,7 +35,7 @@ const [isModalOpen, setIsModalOpen] = useState(false);
         <div className="landing-buttons">
           <button 
             className="main-action-button"
-            onClick={() => navigate('/game')} // ボタンを押すと /game に移動
+            onClick={handleGuestJoin} // ★ 修正
           >
             ゲストとして参加!
           </button>

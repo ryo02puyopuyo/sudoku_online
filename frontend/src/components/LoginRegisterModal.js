@@ -29,20 +29,25 @@ export default function LoginRegisterModal({ isOpen, onClose }) {
   const handleLogin = async () => {
     setError('');
     if (!username || !password) {
-      setError('ユーザー名とパスワードを入力してください。');
-      return;
+        setError('ユーザー名とパスワードを入力してください。');
+        return;
     }
     try {
-      // 修正点：withCredentialsオプションを追加（または後述のグローバル設定を行う）
-      await axios.post('/api/login', { username, password }, { withCredentials: true });
-      
-      // 修正点：成功したらモーダルを閉じてゲーム画面へ遷移
-      onClose();
-      navigate('/game'); 
+        // ★ 変更点：ログインリクエスト
+        const response = await axios.post('/api/login', { username, password });
+        
+        // ★ 変更点：サーバーから返されたトークンを保存
+        const { token } = response.data;
+        if (token) {
+            localStorage.setItem('auth_token', token);
+        }
+        
+        onClose();
+        navigate('/game'); 
     } catch (err) {
-      setError('ログインに失敗しました。ユーザー名またはパスワードを確認してください。');
+        setError('ログインに失敗しました。ユーザー名またはパスワードを確認してください。');
     }
-  };
+};
 
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) {

@@ -20,8 +20,15 @@ export default function Game() {
   const ws = useRef(null);
 
   useEffect(() => {
-    // ゲストとしてトークンなしで接続
-    const socket = new WebSocket(process.env.REACT_APP_WS_URL);
+// ★ 変更点：localStorage からトークンを取得
+    const token = localStorage.getItem('auth_token');
+    
+    // ★ 変更点：トークンがあればURL末尾に付与
+    const wsUrl = token 
+        ? `${process.env.REACT_APP_WS_URL}?token=${token}`
+        : process.env.REACT_APP_WS_URL;
+
+    const socket = new WebSocket(wsUrl);
     ws.current = socket;
 
     socket.onopen = () => setIsConnected(true);

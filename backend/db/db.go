@@ -1,24 +1,29 @@
 package db
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 	"time"
 
-	// 削除: sqlmysql "github.com/go-sql-driver/mysql"
-	// 削除: "gorm.io/driver/mysql"
-
-	// 追加: PostgreSQL用のドライバ
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+// JWTの署名に使用する秘密鍵（環境変数から取得）
+var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+
+// JWTのデータ構造（Payload）
+type Claims struct {
+	UserID   uint   `json:"user_id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+	jwt.RegisteredClaims
+}
 
 type User struct {
 	ID            uint   `gorm:"primarykey"`
@@ -31,35 +36,31 @@ type User struct {
 	UpdatedAt     time.Time
 }
 
-type UserToken struct {
-	ID        uint      `gorm:"primarykey"`
-	UserID    uint      `gorm:"not null"`
-	TokenHash string    `gorm:"unique;not null"`
-	ExpiresAt time.Time `gorm:"not null"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 func Connect() (*gorm.DB, error) {
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("注意: .envファイルが読み込めませんでした。")
+		log.Println("注意: .envファイルが読み込めませんでした。、読み込めない環境の場合okです")
 	}
+
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		return nil, fmt.Errorf("エラー: DB_DSN が設定されていません")
 	}
 
-	// 修正ポイント: PrepareStmt を false に設定してプーラーとの衝突を防ぐ
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		PrepareStmt: false,
+		PrepareStmt: false, // プーラー（PgBouncer）利用時は必須
 	})
 
-	if err != nil {
-		return nil, fmt.Errorf("DB接続失敗: %w", err)
+	// ★ 安定化設定：ゾンビ接続を3分で強制終了してリフレッシュ
+	sqlDB, err := db.DB()
+	if err == nil {
+		sqlDB.SetMaxIdleConns(5)
+		sqlDB.SetMaxOpenConns(10)
+		sqlDB.SetConnMaxLifetime(time.Minute * 3) // 270秒タイムアウトを防ぐ
 	}
 
-	err = db.AutoMigrate(&User{}, &UserToken{})
+	// ★ Userテーブルのみマイグレーション
+	err = db.AutoMigrate(&User{})
 	if err != nil {
 		return nil, fmt.Errorf("マイグレーション失敗: %w", err)
 	}
@@ -75,9 +76,7 @@ func CreateUser(db *gorm.DB, username, password, role string) (*User, error) {
 	user := &User{Username: username, PasswordHash: string(hashedPassword), Role: role}
 	result := db.Create(user)
 	if result.Error != nil {
-		// 修正: PostgreSQL向けのエラー判定
-		// 文字列判定、または pgconn.PgError を使うのが一般的です
-		if strings.Contains(result.Error.Error(), "duplicate key value") || strings.Contains(result.Error.Error(), "23505") {
+		if strings.Contains(result.Error.Error(), "23505") || strings.Contains(result.Error.Error(), "duplicate key") {
 			return nil, fmt.Errorf("ユーザー名 '%s' は既に使用されています", username)
 		}
 		return nil, fmt.Errorf("ユーザー作成失敗: %w", result.Error)
@@ -85,6 +84,7 @@ func CreateUser(db *gorm.DB, username, password, role string) (*User, error) {
 	return user, nil
 }
 
+// ★ ログイン：DBにトークンを保存せず、JWTを生成して返す
 func LoginUser(db *gorm.DB, username, password string) (string, error) {
 	var user User
 	if err := db.Where("username = ?", username).First(&user).Error; err != nil {
@@ -93,57 +93,48 @@ func LoginUser(db *gorm.DB, username, password string) (string, error) {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return "", fmt.Errorf("ユーザー名またはパスワードが違います")
 	}
-	token, err := generateSecureToken(32)
+
+	// JWTの生成
+	return GenerateJWT(&user)
+}
+
+// トークンを生成する
+func GenerateJWT(user *User) (string, error) {
+	claims := &Claims{
+		UserID:   user.ID,
+		Username: user.Username,
+		Role:     user.Role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(72 * time.Hour)), // 3日間有効
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
+}
+
+// トークンを検証し、DBを叩かずにユーザー情報を復元する
+func VerifyJWT(tokenString string) (*User, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
+	})
+
 	if err != nil {
-		return "", fmt.Errorf("トークン生成失敗: %w", err)
+		return nil, fmt.Errorf("トークンの解析に失敗しました: %w", err)
 	}
-	tokenHash := hashToken(token)
-	userToken := UserToken{
-		UserID:    user.ID,
-		TokenHash: tokenHash,
-		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		// ★ DBにはアクセスせず、トークン内の情報からUserオブジェクトを作る
+		return &User{
+			ID:       claims.UserID,
+			Username: claims.Username,
+			Role:     claims.Role,
+		}, nil
 	}
-	if err := db.Create(&userToken).Error; err != nil {
-		return "", fmt.Errorf("トークン保存失敗: %w", err)
-	}
-	return token, nil
+
+	return nil, fmt.Errorf("無効なトークンです")
 }
 
-func FindUserByToken(db *gorm.DB, token string) (*User, error) {
-	tokenHash := hashToken(token)
-	var userToken UserToken
-	err := db.Where("token_hash = ?", tokenHash).First(&userToken).Error
-	if err != nil {
-		return nil, fmt.Errorf("無効なトークンです")
-	}
-	if time.Now().After(userToken.ExpiresAt) {
-		db.Delete(&userToken)
-		return nil, fmt.Errorf("トークンの有効期限が切れています")
-	}
-	var user User
-	if err := db.First(&user, userToken.UserID).Error; err != nil {
-		return nil, fmt.Errorf("トークンに紐づくユーザーが見つかりません")
-	}
-	return &user, nil
-}
-
-func generateSecureToken(length int) (string, error) {
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
-func hashToken(token string) string {
-	hash := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(hash[:])
-}
-
+// ★ DeleteUserToken は JWT 方式では不要（クライアント側でトークンを捨てればOK）
 func DeleteUserToken(db *gorm.DB, userID uint) error {
-	result := db.Where("user_id = ?", userID).Delete(&UserToken{})
-	if result.Error != nil {
-		return fmt.Errorf("トークン削除失敗: %w", result.Error)
-	}
-	return nil
+	return nil // 互換性のために残すだけ
 }
