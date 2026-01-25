@@ -47,9 +47,13 @@ func Connect() (*gorm.DB, error) {
 		return nil, fmt.Errorf("エラー: DB_DSN が設定されていません")
 	}
 
+	log.Println("db_dsn成功")
+
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		PrepareStmt: false, // プーラー（PgBouncer）利用時は必須
 	})
+
+	log.Println("gorm open 成功、DB接続開始")
 
 	// ★ 安定化設定：ゾンビ接続を3分で強制終了してリフレッシュ
 	sqlDB, err := db.DB()
