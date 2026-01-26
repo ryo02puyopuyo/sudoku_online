@@ -118,7 +118,7 @@ export default function Game() {
           onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
           className="sidebar-toggle-main-button"
         >
-          {isSidebarOpen ? 'チャット/一覧を隠す' : 'チャット/一覧を表示'}
+          {isSidebarOpen ? 'チャット/メンバーを隠す' : 'チャット/メンバーを表示'}
         </button>
       </div>
     </>

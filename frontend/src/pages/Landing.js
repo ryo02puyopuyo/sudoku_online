@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import LoginRegisterModal from '../components/LoginRegisterModal';
 import '../App.css';
 import axios from 'axios';
+import { playSE } from '../components/Sound';
 
 export default function Landing() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
 
   const announcements = [
-    { date: '2026/02/27', content: ' 無料のデプロイサービスを使っているため、しばらく遊ぶ人がいないと、ゲームの起動に1分ほどかかります' },
+    { date: '2026/01/27', content: ' 無料のデプロイサービスを使っているため、しばらく遊ぶ人がいないと、ゲームの起動に1分ほどかかります' },
     { date: '2026/01/27', content: ' ログインシステム実装、ホットスポット実装' },
     { date: '2025/10/**', content: ' ナンプレバトルβ版を公開しました！' },
   ];
@@ -32,6 +33,8 @@ export default function Landing() {
 
   return (
     <div className="landing-container">
+
+
 
       {/* 1. メインコンテンツ */}
       <div className="landing-content">
@@ -74,10 +77,26 @@ export default function Landing() {
         </div>
       </div>
 
+
+      {/* 音声テストボタン */}
+      <div style={{ 
+        background: 'rgba(255,255,255,0.1)', 
+        padding: '20px', 
+        borderRadius: '10px',
+        marginTop: '20px' 
+      }}>
+        <p>🔊 SEテストパネル</p>
+        <button onClick={() => playSE('correct')}>決定音1</button>
+        <button onClick={() => playSE('incorrect')}>ビープ音</button>
+        <button onClick={() => playSE('hostspot')}>決定音2</button>
+      </div>
+
       <LoginRegisterModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
       />
     </div>
+
+    
   );
 }
