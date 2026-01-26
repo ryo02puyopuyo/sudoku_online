@@ -31,3 +31,7 @@ http://localhost:8081/
 
 git reset --hard <commit_hash>
 git clean -fd
+
+#Render × Supabase で `sqlalche.me/e/20/e3q8` エラー！解決策は Session Pooler！ #PostgreSQL - Qiita
+renderとsupabseがうまく行かなかった原因？　現在はneon
+https://qiita.com/chamasei/items/f37a2f1f185ea574a5c6

@@ -1,49 +1,28 @@
-# Docker Composeのファイルバージョンを指定
 version: '3.8'
 
-# 起動するサービス（コンテナ）を定義
 services:
-  # 'db'という名前のサービスを定義（MySQLサーバー）
+  # 'db'サービスをPostgreSQLに変更
   db:
-    # 使用するDockerイメージを指定 (MySQLのバージョン8.0)
-    image: mysql:8.0
-    
-    # コンテナが停止した場合に常に自動で再起動する設定
+    image: postgres:15-alpine  # 軽量なalpine版がおすすめ
     restart: always
-    
-    # 環境変数の設定
     environment:
-      # ルート（管理者）ユーザーのパスワード
-      MYSQL_ROOT_PASSWORD: root_password
-      # 作成するデータベースの名前
-      MYSQL_DATABASE: sudoku_db
-      # 作成する一般ユーザーの名前
-      MYSQL_USER: sudoku_user
-      # 作成する一般ユーザーのパスワード
-      MYSQL_PASSWORD: password
-    
-    # ポートのマッピング設定
+      # PostgreSQL用の環境変数
+      POSTGRES_USER: sudoku_user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: sudoku_db
     ports:
-      # PCの3306番ポートへのアクセスを、コンテナの3306番ポートに転送
-      - "3306:3306"
-      
-    # データの永続化設定
+      # PostgreSQLのデフォルトポートは5432です
+      - "5432:5432"
     volumes:
-      # 'mysql-data'という名前のボリュームにデータを保存し、コンテナを消してもデータが残るようにする
-      - mysql-data:/var/lib/mysql
-  # 'adminer'という名前のサービスを定義（データベース管理ツール）
+      # 保存先パスもPostgreSQL用に変更
+      - postgres-data:/var/lib/postgresql/data
+
+  # Adminerはそのまま使えます
   adminer:
-    # Adminerの公式Dockerイメージを指定
     image: adminer
-    
-    # コンテナが停止した場合に常に自動で再起動する設定
     restart: always
-    
-    # ポートのマッピング設定
     ports:
-      # PCの8081番ポートへのアクセスを、コンテナの8080番ポートに転送
       - "8081:8080"
 
-# データの永続化に使用するボリュームを定義
 volumes:
-  mysql-data:
+  postgres-data:
