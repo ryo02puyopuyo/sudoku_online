@@ -5,74 +5,79 @@ import '../App.css';
 import axios from 'axios';
 
 export default function Landing() {
-const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
 
-  // ★ 変更点：ゲスト参加用の関数を作成
-    const handleGuestJoin = () => {
-        // localStorage を空にして、確実にゲストとして扱う
-        localStorage.removeItem('auth_token');
-        navigate('/game');
-    };
+  const announcements = [
+    { date: '2026/02/27', content: ' 無料のデプロイサービスを使っているため、しばらく遊ぶ人がいないと、ゲームの起動に1分ほどかかります' },
+    { date: '2026/01/27', content: ' ログインシステム実装、ホットスポット実装' },
+    { date: '2025/10/**', content: ' ナンプレバトルβ版を公開しました！' },
+  ];
 
-    // テストボタンのクリック処理
+  const handleGuestJoin = () => {
+    localStorage.removeItem('auth_token');
+    navigate('/game');
+  };
+
+  //テストボタン
   const handleTestClick = async () => {
     try {
       const response = await axios.post('/api/test', { msg: 'Hello from frontend!' });
       alert('サーバーからのレスポンス: ' + JSON.stringify(response.data));
-      console.log('✅ /api/test レスポンス:', response.data);
     } catch (err) {
       console.error('❌ 通信エラー:', err);
-      alert('通信に失敗しました。サーバーが起動しているか確認してください。');
+      alert('通信に失敗しました。');
     }
   };
 
   return (
     <div className="landing-container">
+
+      {/* 1. メインコンテンツ */}
       <div className="landing-content">
         <h1 className="landing-title">ナンプレバトル</h1>
         <p className="landing-subtitle">リアルタイム協力＆対戦ナンプレ</p>
-        <div className="landing-buttons">
-          <button 
-            className="main-action-button"
-            onClick={handleGuestJoin} // ★ 修正
-          >
-            ゲストとして参加!
-          </button>
+        
+        <div className="landing-buttons-container">
+          <div className="landing-buttons">
+            <button className="main-action-button" onClick={handleGuestJoin}>
+              ゲストとして参加!
+            </button>
+          </div>
+
+          <div className="landing-buttons">
+            <button className="main-action-button" onClick={() => setIsModalOpen(true)}>
+              ログイン・新規登録
+            </button>
+          </div>
         </div>
 
-
-        <div className="landing-buttons">
-          <button 
-            className="main-action-button"
-            onClick={() => setIsModalOpen(true)}
-          >
-            ログイン・新規登録
+        {/* テスト用ボタン*/}
+        <div className="test-button-area">
+          <button onClick={handleTestClick} className="test-api-button">
+            /api/test 通信テスト
           </button>
+        </div>
+        
+      </div>
+
+      {/* 2. お知らせ欄*/}
+      <div className="announcement-wrapper">
+        <h2 className="announcement-title">お知らせ</h2>
+        <div className="announcement-list">
+          {announcements.map((item, index) => (
+            <div key={index} className="announcement-item">
+              <span className="announcement-date">{item.date}</span>
+              <span className="announcement-text">{item.content}</span>
+            </div>
+          ))}
         </div>
       </div>
-            <LoginRegisterModal 
+
+      <LoginRegisterModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
       />
-
-      {/* ✅ テスト用ボタン */}
-      <div style={{ textAlign: 'center', marginTop: '20px' }}>
-        <button
-          onClick={handleTestClick}
-          style={{
-            padding: '10px 20px',
-            borderRadius: '8px',
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          /api/test 通信テスト
-        </button>
-      </div>
     </div>
-    
   );
 }

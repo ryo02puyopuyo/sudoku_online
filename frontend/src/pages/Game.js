@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from "react";
-// コンポーネントのパスが'../components/'に変わったことに注意
 import SudokuBoard from "../components/SudokuBoard";
 import UserList from "../components/UserList";
 import ScoreBoard from "../components/ScoreBoard";

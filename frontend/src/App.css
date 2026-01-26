@@ -372,16 +372,24 @@ h1 {
 .modal-button {
   margin-top: 10px;
 }
+/* コンテナ全体を縦並びのFlexboxにする */
 .landing-container {
-  width: 100%;
-  min-height: 100vh;
   display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  justify-content: space-between; /* これでコンテンツと知らせを上下に分ける */
   align-items: center;
-  justify-content: center;
-  text-align: center;
+  padding: 40px 20px;
+  box-sizing: border-box;
 }
+
+/* 中央のメインコンテンツ */
 .landing-content {
-  max-width: 600px;
+  flex: 1; /* 余白を埋める */
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* 垂直方向の中央 */
+  align-items: center;
 }
 .landing-title {
   font-size: 48px;
@@ -553,4 +561,44 @@ h1 {
 .login-button:hover {
   opacity: 0.9;
   transform: scale(1.03);
+}
+/* お知らせ欄の調整 */
+.announcement-wrapper {
+  width: 100%;
+  max-width: 600px;
+  margin-top: 40px;
+  /* ▼ 変更点: 背景を「黒の半透明」から「白のほんのり半透明」に変更 */
+  background: rgba(41, 25, 25, 0.1); 
+  /* ▲ これで明るくなります。数値(0.1)を大きくすると白っぽさが増します */
+  
+  padding: 15px 20px;
+  border-radius: 12px; /* 角丸を少し柔らかく */
+  
+  /* ▼ 変更点: 枠線を少し明るく */
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  
+  /* ▼ 追加点: ほんのり影をつけて浮かび上がらせる */
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(5px); /* 背景を少しぼかしてガラスっぽくする（対応ブラウザのみ）*/
+}
+
+/* タイトル文字色も調整 */
+.announcement-title {
+  font-size: 1rem;
+  margin-bottom: 10px;
+  color: #000000; /* タイトルを真っ白に */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3); /* 下線も明るく */
+  padding-bottom: 5px;
+}
+
+/* 日付の色を調整 */
+.announcement-date {
+  color: #000000; /* 少し明るめのグレーに */
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* 本文の色を調整 */
+.announcement-text {
+  color: #000000; /* ほぼ白に */
 }
