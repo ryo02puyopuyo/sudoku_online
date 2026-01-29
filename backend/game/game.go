@@ -9,7 +9,6 @@ import (
 	"github.com/ryo02puyopuyo/sudoku_online/backend/models"
 )
 
-// Game はゲーム全体のシングルトルンな状態を管理します
 type Game struct {
 	mu                  sync.Mutex
 	Board               [9][9]models.Cell
@@ -18,6 +17,17 @@ type Game struct {
 	IsOver              bool
 	LastGameOverPayload *models.GameOverPayload
 }
+
+// セル更新の結果
+type CellUpdateResult int
+
+const (
+	ResultNone      UpdateResult = iota // 変化なし（fixedマスなど）
+	ResultCorrect                       // 正解
+	ResultIncorrect                     // 不正解
+	ResultHotSpot                       // ホットスポット正解
+	ResultEmpty                         // マスを空にした
+)
 
 // NewGame は新しいGameインスタンスを生成して返します
 func NewGame() *Game {
