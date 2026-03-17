@@ -88,7 +88,7 @@ export default function Landing() {
         <p>🔊 SEテストパネル</p>
         <button onClick={() => playSE('correct')}>決定音1</button>
         <button onClick={() => playSE('incorrect')}>ビープ音</button>
-        <button onClick={() => playSE('hostspot')}>決定音2</button>
+        <button onClick={() => playSE('hotspot')}>決定音2</button>
       </div>
 
       <LoginRegisterModal 

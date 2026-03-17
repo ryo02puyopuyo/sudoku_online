@@ -19,13 +19,13 @@ export default function Game() {
   const ws = useRef(null);
 
   useEffect(() => {
-// ★ 変更点：localStorage からトークンを取得
+    // ★ 変更点：localStorage からトークンを取得
     const token = localStorage.getItem('auth_token');
-    
+
     // ★ 変更点：トークンがあればURL末尾に付与
-    const wsUrl = token 
-        ? `${process.env.REACT_APP_WS_URL}?token=${token}`
-        : process.env.REACT_APP_WS_URL;
+    const wsUrl = token
+      ? `${process.env.REACT_APP_WS_URL}?token=${token}`
+      : process.env.REACT_APP_WS_URL;
 
     const socket = new WebSocket(wsUrl);
     ws.current = socket;
@@ -87,7 +87,7 @@ export default function Game() {
   return (
     <>
       <ResultModal result={gameOverResult} onNewGame={requestNewPuzzle} />
-      
+
       {isSidebarOpen && (
         <div className="sidebar-container">
           <UserList
@@ -113,9 +113,9 @@ export default function Game() {
         ) : (
           isConnected && <p>問題を読み込んでいます...</p>
         )}
-        
-        <button 
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
           className="sidebar-toggle-main-button"
         >
           {isSidebarOpen ? 'チャット/メンバーを隠す' : 'チャット/メンバーを表示'}
