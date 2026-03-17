@@ -12,10 +12,11 @@ type ClientMessage struct {
 }
 
 type Player struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Team int    `json:"team"`
-	Role string `json:"role"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Team               int    `json:"team"`
+	Role               string `json:"role"`
+	ConsecutiveCorrect int    `json:"consecutiveCorrect"`
 }
 
 type Cell struct {

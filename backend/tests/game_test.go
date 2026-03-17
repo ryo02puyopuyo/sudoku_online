@@ -122,7 +122,7 @@ func TestUpdateCell_FixedCellIsNotUpdated(t *testing.T) {
 	for r := 0; r < 9; r++ {
 		for c := 0; c < 9; c++ {
 			if board[r][c].Status == "fixed" {
-				completed, _ := g.UpdateCell(r, c, 5, 1)
+				_, completed := g.UpdateCell(r, c, 5, 1)
 				if completed {
 					t.Error("fixed cell should not cause board completion")
 				}

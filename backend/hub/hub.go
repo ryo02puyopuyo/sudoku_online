@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ryo02puyopuyo/sudoku_online/backend/db"
+	"github.com/ryo02puyopuyo/sudoku_online/backend/game"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/models"
 	"github.com/gorilla/websocket"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/room"
@@ -134,7 +135,46 @@ func (h *Hub) handleMessage(conn *websocket.Conn, targetRoom *room.Room, player 
 		payload, _ := msg.Payload.(map[string]interface{})
 		row, col, value := int(payload["row"].(float64)), int(payload["col"].(float64)), int(payload["value"].(float64))
 
-		boardCompleted, isHotSpotHit := targetRoom.Game.UpdateCell(row, col, value, player.Team)
+		updateResult, boardCompleted := targetRoom.Game.UpdateCell(row, col, value, player.Team)
+
+		isHotSpotHit := false
+		if updateResult == game.ResultHotSpot {
+			isHotSpotHit = true
+		}
+
+		// コンボ処理
+		targetRoom.Mu.Lock()
+		if updateResult == game.ResultCorrect || updateResult == game.ResultHotSpot {
+			player.ConsecutiveCorrect++
+			
+			// ボーナス判定: 下一桁5なら+1, 10の倍数なら+2
+			bonus := 0
+			if player.ConsecutiveCorrect%10 == 5 {
+				bonus = 1
+			} else if player.ConsecutiveCorrect > 0 && player.ConsecutiveCorrect%10 == 0 {
+				bonus = 2
+			}
+			
+			if bonus > 0 {
+				// スコア付与
+				targetRoom.Mu.Unlock() // AddScoreが中でLockを取るので一旦Unlock
+				targetRoom.Game.AddScore(player.Team, bonus)
+				
+				// チャット通知
+				bonusMsg := fmt.Sprintf("%s 選手が怒涛の %d 連続正解！(ボーナス +%d点)", player.Name, player.ConsecutiveCorrect, bonus)
+				chatMessage := models.ChatMessage{
+					SenderName: "SYSTEM",
+					SenderTeam: 0,
+					Message:    bonusMsg,
+					Timestamp:  time.Now().Format("15:04"),
+				}
+				h.broadcastChatMessage(targetRoom, chatMessage)
+				targetRoom.Mu.Lock() // 戻す
+			}
+		} else if updateResult == game.ResultIncorrect {
+			player.ConsecutiveCorrect = 0
+		}
+		targetRoom.Mu.Unlock()
 
 		h.broadcastBoardState(targetRoom)
 		h.broadcastUserListUpdate(targetRoom)

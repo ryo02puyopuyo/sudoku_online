@@ -47,6 +47,11 @@ export default function UserList({ users, myPlayer, onChangeName }) {
                   }}
                 >
                   {user.name}
+                  {user.consecutiveCorrect > 0 && (
+                    <span className="combo-badge" style={{ marginLeft: "5px", color: "#ff9800", fontSize: "0.85em", fontWeight: "bold" }}>
+                      {user.consecutiveCorrect} Combo!
+                    </span>
+                  )}
                 </span>
                 {user.id === myPlayer?.id && (
                   <span className="edit-name-icon" onClick={() => setIsEditingName(true)}>

@@ -78,29 +78,31 @@ func (g *Game) Reset() {
 	log.Println("A new board state has been generated and game state has been reset.")
 }
 
-// UpdateCell はセルの更新を処理し、(盤面完成, ホットスポットヒット) を返す
-func (g *Game) UpdateCell(row, col, value int, playerTeam int) (bool, bool) {
+// UpdateCell はセルの更新を処理し、(更新結果, 盤面完成) を返す
+func (g *Game) UpdateCell(row, col, value int, playerTeam int) (UpdateResult, bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	currentCell := g.Board[row][col]
-	isHotSpotHit := false
 
 	if currentCell.Status == "fixed" || currentCell.Status == "correct" {
-		return false, false
+		return ResultNone, false
 	}
 	if currentCell.Status == "wrong" && currentCell.Value == value {
-		return false, false
+		return ResultNone, false
 	}
 
+	var result UpdateResult
 	if value == 0 {
 		g.Board[row][col] = models.Cell{Value: 0, Status: "empty"}
+		result = ResultEmpty
 	} else if value == g.Solution[row][col] {
 		g.Board[row][col] = models.Cell{Value: value, Status: "correct", FilledByTeam: playerTeam, IsHotSpot: currentCell.IsHotSpot}
 
 		points := 1
+		result = ResultCorrect
 		if currentCell.IsHotSpot {
-			isHotSpotHit = true
+			result = ResultHotSpot
 			points = 3
 		}
 		if playerTeam == 1 {
@@ -110,6 +112,7 @@ func (g *Game) UpdateCell(row, col, value int, playerTeam int) (bool, bool) {
 		}
 	} else {
 		g.Board[row][col] = models.Cell{Value: value, Status: "wrong", FilledByTeam: playerTeam}
+		result = ResultIncorrect
 		if playerTeam == 1 {
 			g.Scores.Team1--
 		} else {
@@ -147,7 +150,7 @@ func (g *Game) UpdateCell(row, col, value int, playerTeam int) (bool, bool) {
 		log.Println("Game Over!")
 	}
 
-	return isFull, isHotSpotHit
+	return result, isFull
 }
 
 func (g *Game) SetScore(team int, points int) {
@@ -158,6 +161,19 @@ func (g *Game) SetScore(team int, points int) {
 		g.Scores.Team1 = points
 	case 2:
 		g.Scores.Team2 = points
+	default:
+		log.Printf("Invalid team number: %d", team)
+	}
+}
+
+func (g *Game) AddScore(team int, points int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	switch team {
+	case 1:
+		g.Scores.Team1 += points
+	case 2:
+		g.Scores.Team2 += points
 	default:
 		log.Printf("Invalid team number: %d", team)
 	}
