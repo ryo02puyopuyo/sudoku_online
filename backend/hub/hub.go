@@ -10,28 +10,24 @@ import (
 	"time"
 
 	"github.com/ryo02puyopuyo/sudoku_online/backend/db"
-	"github.com/ryo02puyopuyo/sudoku_online/backend/game"
 	"github.com/ryo02puyopuyo/sudoku_online/backend/models"
-	"gorm.io/gorm"
-
 	"github.com/gorilla/websocket"
+	"github.com/ryo02puyopuyo/sudoku_online/backend/room"
+	"gorm.io/gorm"
 )
 
 type Hub struct {
-	mu         sync.Mutex
-	clients    map[*websocket.Conn]*models.Player
-	game       *game.Game // Gameの状態への参照を持つ
-	DB         *gorm.DB
-	upgrader   websocket.Upgrader
-	nextUserID int
+	mu          sync.Mutex
+	roomManager *room.RoomManager
+	DB          *gorm.DB
+	upgrader    websocket.Upgrader
+	nextUserID  int
 }
 
-// 修正点: 引数に dbConn を追加
-func NewHub(game *game.Game, dbConn *gorm.DB) *Hub {
+func NewHub(rm *room.RoomManager, dbConn *gorm.DB) *Hub {
 	return &Hub{
-		clients: make(map[*websocket.Conn]*models.Player),
-		game:    game,
-		DB:      dbConn,
+		roomManager: rm,
+		DB:          dbConn,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
@@ -39,7 +35,6 @@ func NewHub(game *game.Game, dbConn *gorm.DB) *Hub {
 	}
 }
 
-// ServeWs はWebSocketリクエストを処理します
 func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -47,15 +42,27 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var player *models.Player
-	var registeredUserID uint = 0 // 修正点: deferで使うためにIDを保持
+	roomID := r.URL.Query().Get("room")
+	if roomID == "" {
+		log.Printf("Room ID is missing")
+		conn.Close()
+		return
+	}
 
-	// --- 【修正点】ユーザー識別ロジックの追加 ---
+	targetRoom, exists := h.roomManager.GetRoom(roomID)
+	if !exists {
+		log.Printf("Room %s does not exist", roomID)
+		conn.Close()
+		return
+	}
+
+	var player *models.Player
+	var registeredUserID uint = 0
+
+	// ユーザー識別: JWT認証済みなら登録ユーザー、それ以外はゲスト
 	if user, ok := r.Context().Value("user").(*db.User); ok {
-		// 【登録ユーザー】
-		// DBから取得した本物のユーザー名を使用
 		player = &models.Player{
-			ID:   fmt.Sprintf("user-%d", user.ID), // IDをプレフィックス付きにしてゲストと区別
+			ID:   fmt.Sprintf("user-%d", user.ID),
 			Name: user.Username,
 			Team: 1,
 			Role: user.Role,
@@ -63,7 +70,6 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 		registeredUserID = user.ID
 		log.Printf("[WebSocket] 登録ユーザー接続: %s (ID: %d)", user.Username, user.ID)
 	} else {
-		// 【ゲストユーザー】
 		h.mu.Lock()
 		guestName := fmt.Sprintf("Guest%d", h.nextUserID)
 		player = &models.Player{
@@ -76,94 +82,87 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 		h.mu.Unlock()
 		log.Printf("[WebSocket] ゲスト接続: %s", guestName)
 	}
-	// ------------------------------------------
 
-	h.mu.Lock()
-	h.clients[conn] = player
-	h.mu.Unlock()
+	targetRoom.AddClient(conn, player)
 
-	// 接続終了時のクリーンアップ
 	defer func() {
-		h.mu.Lock()
-		delete(h.clients, conn)
-		h.mu.Unlock()
+		targetRoom.RemoveClient(conn)
 		conn.Close()
 
-		// 【重要】プレイヤーが抜けるとDBのトークンを削除し、再ログインを強制する
 		if registeredUserID != 0 {
-			log.Printf("registerd user disconnecting, deleting token: userID=%d", registeredUserID)
+			log.Printf("Registered user disconnecting, deleting token: userID=%d", registeredUserID)
 			db.DeleteUserToken(h.DB, registeredUserID)
 		}
 
-		log.Printf("%s disconnected.", player.ID)
-		h.broadcastUserListUpdate()
+		log.Printf("%s disconnected from room %s.", player.ID, targetRoom.ID)
+		h.broadcastUserListUpdate(targetRoom)
 	}()
 
-	// Welcomeメッセージの送信（新しい player 情報を含める）
 	welcomePayload := models.WelcomePayload{
 		YourPlayer: *player,
-		BoardState: h.game.GetBoard(),
+		BoardState: targetRoom.Game.GetBoard(),
+		RoomID:     targetRoom.ID,
+		RoomName:   targetRoom.Name,
 	}
 	conn.WriteJSON(models.ServerMessage{Type: "welcome", Payload: welcomePayload})
 
-	h.broadcastUserListUpdate()
+	h.broadcastUserListUpdate(targetRoom)
 
 	for {
 		var msg models.ClientMessage
 		if err := conn.ReadJSON(&msg); err != nil {
 			break
 		}
-		h.handleMessage(conn, player, msg)
+		h.handleMessage(conn, targetRoom, player, msg)
 	}
 }
 
-// handleMessage はクライアントからのメッセージを種類に応じて処理します
-func (h *Hub) handleMessage(conn *websocket.Conn, player *models.Player, msg models.ClientMessage) {
-	isOver, _ := h.game.GetGameOverState()
+func (h *Hub) handleMessage(conn *websocket.Conn, targetRoom *room.Room, player *models.Player, msg models.ClientMessage) {
+	isOver, _ := targetRoom.Game.GetGameOverState()
 	if isOver && msg.Type != "new_puzzle" {
-		return // ゲーム終了後は新しいパズル要求以外は無視
+		return
 	}
 
 	switch msg.Type {
 	case "new_puzzle":
-		h.game.Reset()
-		h.broadcastNewGameStarted()
-		h.broadcastBoardState()
-		h.broadcastUserListUpdate()
+		targetRoom.Game.Reset()
+		h.broadcastNewGameStarted(targetRoom)
+		h.broadcastBoardState(targetRoom)
+		h.broadcastUserListUpdate(targetRoom)
 
 	case "cell_update":
 		payload, _ := msg.Payload.(map[string]interface{})
 		row, col, value := int(payload["row"].(float64)), int(payload["col"].(float64)), int(payload["value"].(float64))
 
-		boardCompleted, isHotSpotHit := h.game.UpdateCell(row, col, value, player.Team)
+		boardCompleted, isHotSpotHit := targetRoom.Game.UpdateCell(row, col, value, player.Team)
 
-		h.broadcastBoardState()
-		h.broadcastUserListUpdate()
+		h.broadcastBoardState(targetRoom)
+		h.broadcastUserListUpdate(targetRoom)
 
 		if isHotSpotHit {
 			chatMessage := models.ChatMessage{
 				SenderName: "SYSTEM",
-				SenderTeam: 0, // システム用カラー（フロントで設定可能）
+				SenderTeam: 0,
 				Message:    fmt.Sprintf("Team %d get hotspot!(+3points)", player.Team),
 				Timestamp:  time.Now().Format("15:04"),
 			}
-			h.broadcastChatMessage(chatMessage)
+			h.broadcastChatMessage(targetRoom, chatMessage)
 		}
 
 		if boardCompleted {
-			_, gameOverPayload := h.game.GetGameOverState()
-			h.broadcastGameOver(*gameOverPayload)
+			_, gameOverPayload := targetRoom.Game.GetGameOverState()
+			h.broadcastGameOver(targetRoom, *gameOverPayload)
 		}
 
 	case "change_team":
 		payload, _ := msg.Payload.(map[string]interface{})
 		team := int(payload["team"].(float64))
 		if team == 1 || team == 2 {
-			h.mu.Lock()
+			targetRoom.Mu.Lock()
 			player.Team = team
-			h.mu.Unlock()
-			log.Printf("%s changed to Team %d", player.Name, team)
-			h.broadcastUserListUpdate()
+			targetRoom.Mu.Unlock()
+			log.Printf("%s changed to Team %d in room %s", player.Name, team, targetRoom.ID)
+			h.broadcastUserListUpdate(targetRoom)
 		}
 
 	case "change_name":
@@ -175,12 +174,12 @@ func (h *Hub) handleMessage(conn *websocket.Conn, player *models.Player, msg mod
 		if !ok || len(newName) == 0 || len(newName) > 15 {
 			return
 		}
-		h.mu.Lock()
+		targetRoom.Mu.Lock()
 		originalName := player.Name
 		player.Name = newName
-		h.mu.Unlock()
-		log.Printf("Player name changed: %s -> %s", originalName, newName)
-		h.broadcastUserListUpdate()
+		targetRoom.Mu.Unlock()
+		log.Printf("Player name changed: %s -> %s in room %s", originalName, newName, targetRoom.ID)
+		h.broadcastUserListUpdate(targetRoom)
 
 	case "send_chat_message":
 		payload, ok := msg.Payload.(map[string]interface{})
@@ -191,14 +190,15 @@ func (h *Hub) handleMessage(conn *websocket.Conn, player *models.Player, msg mod
 		if !ok || len(chatText) == 0 || len(chatText) > 100 {
 			return
 		}
-		//チートコマンド (":cheat abc")の形式
-		if strings.HasPrefix(chatText, ":cheat") /*&& player.role == "admin"***/ {
+
+		// チートコマンド処理 (":cheat <command>" 形式)
+		if strings.HasPrefix(chatText, ":cheat") {
 			if player.Role == "admin" {
-				log.Printf("admin cheat  %s", player.Name)
+				log.Printf("Admin cheat by %s in room %s", player.Name, targetRoom.ID)
 				return
 			}
-			log.Printf("%s issued a cheat command: %s", player.Name, chatText)
-			h.handleCheatCommand( /***player,***/ conn, player, chatText)
+			log.Printf("%s issued a cheat command: %s in room %s", player.Name, chatText, targetRoom.ID)
+			h.handleCheatCommand(conn, targetRoom, player, chatText)
 			return
 		}
 
@@ -208,118 +208,121 @@ func (h *Hub) handleMessage(conn *websocket.Conn, player *models.Player, msg mod
 			Message:    chatText,
 			Timestamp:  time.Now().Format("15:04"),
 		}
-		h.broadcastChatMessage(chatMessage)
+		h.broadcastChatMessage(targetRoom, chatMessage)
 	}
 }
 
-func (h *Hub) handleCheatCommand(conn *websocket.Conn, player *models.Player, command string) {
-	// 先頭の'/'を除去し、スペースで分割
-	log.Printf("in handleCheatCommand: %s", command)
+func (h *Hub) handleCheatCommand(conn *websocket.Conn, targetRoom *room.Room, player *models.Player, command string) {
+	log.Printf("handleCheatCommand: %s", command)
 	command = strings.TrimPrefix(command, ":cheat")
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
-		return // コマンドが空
+		return
 	}
 
-	cmd := parts[0]   // コマンド名 (例: "addscore")
-	args := parts[1:] // 引数のスライス (例: ["1", "100"])
+	cmd := parts[0]
+	args := parts[1:]
 
 	switch cmd {
 	case "setscore":
 		if len(args) != 2 {
-			//h.sendPrivateMessage(conn, "使用法: /setscore <1,2>(int) <points>(int)")
 			return
 		}
 		team, err1 := strconv.Atoi(args[0])
 		points, err2 := strconv.Atoi(args[1])
 		if err1 != nil || err2 != nil {
-			//h.sendPrivateMessage(conn, "引数が不正です。チームとポイントは数字である必要があります。")
 			return
 		}
-		log.Printf("%s is setting Team %d score to %d", player.Name, team, points)
-		h.game.SetScore(team, points)
-		h.broadcastBoardState()
-		h.broadcastUserListUpdate()
+		log.Printf("%s is setting Team %d score to %d in room %s", player.Name, team, points, targetRoom.ID)
+		targetRoom.Game.SetScore(team, points)
+		h.broadcastBoardState(targetRoom)
+		h.broadcastUserListUpdate(targetRoom)
 
 	case "godcyclone":
-		//使用者のチームの点数を999に、相手チームを-999にする
-		log.Printf("%s is using godcyclone cheat!", player.Name)
-		h.game.SetScore(player.Team, 999)
+		log.Printf("%s is using godcyclone cheat! in room %s", player.Name, targetRoom.ID)
+		targetRoom.Game.SetScore(player.Team, 999)
 		otherTeam := 1
 		if player.Team == 1 {
 			otherTeam = 2
 		}
-		h.game.SetScore(otherTeam, -999)
-		h.broadcastBoardState()
-		h.broadcastUserListUpdate()
+		targetRoom.Game.SetScore(otherTeam, -999)
+		h.broadcastBoardState(targetRoom)
+		h.broadcastUserListUpdate(targetRoom)
 
 	default:
-		return // 未知のコマンドはとりあえず無視
+		return
 	}
 }
 
 // --- ブロードキャスト関数群 ---
 
-func (h *Hub) broadcastToAll(message interface{}) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for client := range h.clients {
+// --- ブロードキャスト関数群 ---
+
+func (h *Hub) broadcastToRoom(targetRoom *room.Room, message interface{}) {
+	targetRoom.Mu.Lock()
+	defer targetRoom.Mu.Unlock()
+	for client := range targetRoom.Clients {
 		if err := client.WriteJSON(message); err != nil {
-			log.Printf("Broadcast error: %v. Removing client.", err)
+			log.Printf("Broadcast error: %v. Removing client from room %s.", err, targetRoom.ID)
 			client.Close()
-			delete(h.clients, client)
+			delete(targetRoom.Clients, client)
 		}
 	}
 }
 
-func (h *Hub) broadcastBoardState() {
-	message := models.ServerMessage{Type: "board_state", Payload: h.game.GetBoard()}
-	h.broadcastToAll(message)
+func (h *Hub) broadcastBoardState(targetRoom *room.Room) {
+	message := models.ServerMessage{Type: "board_state", Payload: targetRoom.Game.GetBoard()}
+	h.broadcastToRoom(targetRoom, message)
 }
 
-func (h *Hub) broadcastUserListUpdate() {
-	h.mu.Lock()
+func (h *Hub) broadcastUserListUpdate(targetRoom *room.Room) {
+	targetRoom.Mu.Lock()
 	var userList []models.Player
-	for _, p := range h.clients {
+	for _, p := range targetRoom.Clients {
 		userList = append(userList, *p)
 	}
-	h.mu.Unlock()
+	targetRoom.Mu.Unlock()
 
-	payload := models.UserListUpdatePayload{Players: userList, Scores: h.game.GetScores()}
+	payload := models.UserListUpdatePayload{Players: userList, Scores: targetRoom.Game.GetScores()}
 	message := models.ServerMessage{Type: "user_list_update", Payload: payload}
-	h.broadcastToAll(message)
+	h.broadcastToRoom(targetRoom, message)
 }
 
-func (h *Hub) broadcastGameOver(payload models.GameOverPayload) {
+func (h *Hub) broadcastGameOver(targetRoom *room.Room, payload models.GameOverPayload) {
 	msg := models.ServerMessage{Type: "game_over", Payload: payload}
-	h.broadcastToAll(msg)
+	h.broadcastToRoom(targetRoom, msg)
 }
 
-func (h *Hub) broadcastChatMessage(payload models.ChatMessage) {
+func (h *Hub) broadcastChatMessage(targetRoom *room.Room, payload models.ChatMessage) {
 	msg := models.ServerMessage{Type: "new_chat_message", Payload: payload}
-	h.broadcastToAll(msg)
+	h.broadcastToRoom(targetRoom, msg)
 }
 
-func (h *Hub) broadcastNewGameStarted() {
+func (h *Hub) broadcastNewGameStarted(targetRoom *room.Room) {
 	msg := models.ServerMessage{Type: "new_game_started"}
-	h.broadcastToAll(msg)
+	h.broadcastToRoom(targetRoom, msg)
 }
 
-// サーバー監視用の関数軍
 func (h *Hub) GetConnectionCount() int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return len(h.clients)
+	count := 0
+	h.roomManager.Mu.Lock()
+	defer h.roomManager.Mu.Unlock()
+	for _, targetRoom := range h.roomManager.Rooms {
+		count += targetRoom.GetPlayerCount()
+	}
+	return count
 }
 
-// 修正点: プレイヤー情報のスライスを返す (読み取り専用)
 func (h *Hub) GetPlayerList() []models.Player {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	var list []models.Player
-	for _, p := range h.clients {
-		list = append(list, *p)
+	h.roomManager.Mu.Lock()
+	defer h.roomManager.Mu.Unlock()
+	for _, targetRoom := range h.roomManager.Rooms {
+		targetRoom.Mu.Lock()
+		for _, p := range targetRoom.Clients {
+			list = append(list, *p)
+		}
+		targetRoom.Mu.Unlock()
 	}
 	return list
 }

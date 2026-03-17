@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import axios from 'axios';
 import Landing from './pages/Landing';
+import Lobby from './pages/Lobby';
 import Game from './pages/Game';
 import './App.css';
 
@@ -27,7 +28,8 @@ function App() {
     <div className="app-container">
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/game" element={<Game />} />
+        <Route path="/lobby" element={<Lobby />} />
+        <Route path="/game/:roomId" element={<Game />} />
       </Routes>
     </div>
   );

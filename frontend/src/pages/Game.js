@@ -5,8 +5,12 @@ import ScoreBoard from "../components/ScoreBoard";
 import TeamSelector from "../components/TeamSelector";
 import Chat from "../components/Chat";
 import ResultModal from "../components/ResultModal";
+import { useParams, useNavigate } from "react-router-dom";
 
 export default function Game() {
+  const { roomId } = useParams();
+  const navigate = useNavigate();
+
   const [isConnected, setIsConnected] = useState(false);
   const [myPlayer, setMyPlayer] = useState(null);
   const [players, setPlayers] = useState([]);
@@ -15,14 +19,20 @@ export default function Game() {
   const [chatMessages, setChatMessages] = useState([]);
   const [gameOverResult, setGameOverResult] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [roomName, setRoomName] = useState("");
 
   const ws = useRef(null);
 
   useEffect(() => {
+    if (!roomId) {
+      navigate('/lobby');
+      return;
+    }
+
     const token = localStorage.getItem('auth_token');
     const wsUrl = token
-      ? `${process.env.REACT_APP_WS_URL}?token=${token}`
-      : process.env.REACT_APP_WS_URL;
+      ? `${process.env.REACT_APP_WS_URL}?token=${token}&room=${roomId}`
+      : `${process.env.REACT_APP_WS_URL}?room=${roomId}`;
 
     const socket = new WebSocket(wsUrl);
     ws.current = socket;
@@ -37,6 +47,9 @@ export default function Game() {
         case "welcome":
           setMyPlayer(msg.payload.yourPlayer);
           setBoardState(msg.payload.boardState);
+          if (msg.payload.roomName) {
+            setRoomName(msg.payload.roomName);
+          }
           break;
         case "board_state":
           setBoardState(msg.payload);
@@ -67,7 +80,7 @@ export default function Game() {
     return () => {
       socket.close();
     };
-  }, []);
+  }, [roomId, navigate]);
 
   const sendMessage = (type, payload) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
@@ -97,7 +110,7 @@ export default function Game() {
       )}
 
       <div className="game-area">
-        <h1>ナンプレバトル</h1>
+        <h1>{roomName ? roomName : "ナンプレバトル"}</h1>
         <ScoreBoard scores={scores} />
         <TeamSelector myPlayer={myPlayer} onChangeTeam={handleChangeTeam} />
         {!isConnected && <p>サーバーに接続中...</p>}
@@ -117,6 +130,16 @@ export default function Game() {
         >
           {isSidebarOpen ? 'チャット/メンバーを隠す' : 'チャット/メンバーを表示'}
         </button>
+
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+          <button
+            onClick={() => navigate('/lobby')}
+            className="main-action-button"
+            style={{ background: '#666' }}
+          >
+            ロビーに戻る
+          </button>
+        </div>
       </div>
     </>
   );

@@ -1,3 +1,4 @@
+
 package api
 
 import (
@@ -6,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/ryo02puyopuyo/sudoku_online/backend/db"
+	"github.com/ryo02puyopuyo/sudoku_online/backend/models"
+	"github.com/ryo02puyopuyo/sudoku_online/backend/room"
 	"gorm.io/gorm"
 )
 
@@ -15,14 +18,14 @@ type Credentials struct {
 }
 
 type API struct {
-	DB *gorm.DB
+	DB          *gorm.DB
+	RoomManager *room.RoomManager
 }
 
 type TestPayload struct {
 	Msg string `json:"msg"`
 }
 
-// テスト用ハンドラ
 func (a *API) TestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POSTメソッドのみ許可されています", http.StatusMethodNotAllowed)
@@ -45,7 +48,6 @@ func (a *API) TestHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// ユーザー登録ハンドラ
 func (a *API) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	var creds Credentials
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
@@ -64,7 +66,21 @@ func (a *API) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "登録完了"})
 }
 
-// ログインハンドラ（JWT方式へ完全修正）
+func (a *API) RoomListHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	rooms := a.RoomManager.GetAllRoomInfo()
+	payload := models.RoomListPayload{
+		Rooms: rooms,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(payload)
+}
+
 func (a *API) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var creds Credentials
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
@@ -72,33 +88,24 @@ func (a *API) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. ユーザーを検証し、JWTトークンを生成
 	token, err := db.LoginUser(a.DB, creds.Username, creds.Password)
 	if err != nil {
-		// 認証失敗時は 401 Unauthorized
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	// ★ 【重要】Cookie（Set-Cookie）の処理は完全に削除しました。
-	// 代わりに、JSONのレスポンスボディに token を含めてフロントエンドに直接手渡します。
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-
-	// フロントエンドの const { token } = response.data が待っているデータ
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message":  "ログイン成功",
-		"token":    token, // これが localStorage に保存されます
+		"token":    token,
 		"username": creds.Username,
 	})
 }
 
-// 現在のユーザー情報を返すエンドポイント
 func (a *API) MeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// ミドルウェア(middleware/auth.go)が JWT を解析してセットしたユーザーを取得
 	user, ok := r.Context().Value("user").(*db.User)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)

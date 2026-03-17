@@ -21,7 +21,7 @@ export default function Landing() {
 
   const handleGuestJoin = () => {
     localStorage.removeItem('auth_token');
-    navigate('/game');
+    navigate('/lobby');
   };
 
   const handleTestClick = async () => {

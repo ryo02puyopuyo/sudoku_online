@@ -19,7 +19,7 @@ type Game struct {
 }
 
 // セル更新の結果
-type CellUpdateResult int
+type UpdateResult int
 
 const (
 	ResultNone      UpdateResult = iota // 変化なし（fixedマスなど）
@@ -29,14 +29,12 @@ const (
 	ResultEmpty                         // マスを空にした
 )
 
-// NewGame は新しいGameインスタンスを生成して返します
 func NewGame() *Game {
 	g := &Game{}
 	g.Reset()
 	return g
 }
 
-// Reset はゲームの状態を初期化します
 func (g *Game) Reset() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -54,7 +52,7 @@ func (g *Game) Reset() {
 	puzzle := createPuzzleFromSolution(solution, 0.5)
 
 	var board [9][9]models.Cell
-	var emptyCellCoords [][2]int // ★ホットスポット選出用の空マスリスト
+	var emptyCellCoords [][2]int
 
 	for r := 0; r < 9; r++ {
 		for c := 0; c < 9; c++ {
@@ -62,18 +60,15 @@ func (g *Game) Reset() {
 				board[r][c] = models.Cell{Value: puzzle[r][c], Status: "fixed", IsHotSpot: false}
 			} else {
 				board[r][c] = models.Cell{Value: 0, Status: "empty", IsHotSpot: false}
-				// プレイヤーが入力するマスをリストに追加
 				emptyCellCoords = append(emptyCellCoords, [2]int{r, c})
 			}
 		}
 	}
 
-	// ★修正点：ホットスポットをランダムに3か所設定
-	// リストをシャッフルして先頭の3つをホットスポットにする
+	// ホットスポットをランダムに3か所設定
 	rand.Shuffle(len(emptyCellCoords), func(i, j int) {
 		emptyCellCoords[i], emptyCellCoords[j] = emptyCellCoords[j], emptyCellCoords[i]
 	})
-
 	for i := 0; i < 3 && i < len(emptyCellCoords); i++ {
 		r, c := emptyCellCoords[i][0], emptyCellCoords[i][1]
 		board[r][c].IsHotSpot = true
@@ -83,7 +78,7 @@ func (g *Game) Reset() {
 	log.Println("A new board state has been generated and game state has been reset.")
 }
 
-// UpdateCell はセルの更新ロジックを担当し、ゲームが終了したかどうかを返します
+// UpdateCell はセルの更新を処理し、(盤面完成, ホットスポットヒット) を返す
 func (g *Game) UpdateCell(row, col, value int, playerTeam int) (bool, bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -91,16 +86,13 @@ func (g *Game) UpdateCell(row, col, value int, playerTeam int) (bool, bool) {
 	currentCell := g.Board[row][col]
 	isHotSpotHit := false
 
-	// 編集不可のセルは更新しない
 	if currentCell.Status == "fixed" || currentCell.Status == "correct" {
 		return false, false
 	}
-	// 間違っていて同じ数字が入力された場合は何もしない
 	if currentCell.Status == "wrong" && currentCell.Value == value {
 		return false, false
 	}
 
-	// セル状態を更新
 	if value == 0 {
 		g.Board[row][col] = models.Cell{Value: 0, Status: "empty"}
 	} else if value == g.Solution[row][col] {
@@ -125,11 +117,11 @@ func (g *Game) UpdateCell(row, col, value int, playerTeam int) (bool, bool) {
 		}
 	}
 
-	// 全てのセルが埋まったかチェック
+	// 全セルが埋まったかチェック
 	isFull := true
-	for r_check := 0; r_check < 9; r_check++ {
-		for c_check := 0; c_check < 9; c_check++ {
-			if g.Board[r_check][c_check].Status != "correct" && g.Board[r_check][c_check].Status != "fixed" {
+	for r := 0; r < 9; r++ {
+		for c := 0; c < 9; c++ {
+			if g.Board[r][c].Status != "correct" && g.Board[r][c].Status != "fixed" {
 				isFull = false
 				break
 			}
@@ -144,7 +136,7 @@ func (g *Game) UpdateCell(row, col, value int, playerTeam int) (bool, bool) {
 		} else if g.Scores.Team2 > g.Scores.Team1 {
 			winner = 2
 		} else {
-			winner = 0 // Draw
+			winner = 0
 		}
 
 		gameOverPayload := models.GameOverPayload{
@@ -159,7 +151,6 @@ func (g *Game) UpdateCell(row, col, value int, playerTeam int) (bool, bool) {
 }
 
 func (g *Game) SetScore(team int, points int) {
-	log.Printf("in setscore")
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	switch team {
@@ -168,33 +159,28 @@ func (g *Game) SetScore(team int, points int) {
 	case 2:
 		g.Scores.Team2 = points
 	default:
-		// log
 		log.Printf("Invalid team number: %d", team)
 	}
 }
 
-// GetBoard は現在の盤面のスナップショットを返します
 func (g *Game) GetBoard() [9][9]models.Cell {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.Board
 }
 
-// GetScores は現在のスコアのスナップショットを返します
 func (g *Game) GetScores() models.Score {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.Scores
 }
 
-// GetGameOverState は現在のゲームオーバー状態を返します
 func (g *Game) GetGameOverState() (bool, *models.GameOverPayload) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.IsOver, g.LastGameOverPayload
 }
 
-// 解答から問題を作成
 func createPuzzleFromSolution(solution [9][9]int, difficulty float64) [9][9]int {
 	var puzzle [9][9]int
 	for r := 0; r < 9; r++ {
@@ -209,7 +195,7 @@ func createPuzzleFromSolution(solution [9][9]int, difficulty float64) [9][9]int 
 	return puzzle
 }
 
-// 解答済みの数独グリッドを生成
+// GenerateSolvedGrid はバックトラッキングで有効な数独解答グリッドを生成する
 func GenerateSolvedGrid(maxAttempts int) ([9][9]int, error) {
 	var grid [9][9]int
 	for attempt := 0; attempt < maxAttempts; attempt++ {

@@ -34,12 +34,11 @@ export default function LoginRegisterModal({ isOpen, onClose }) {
     }
     try {
       const response = await axios.post('/api/login', { username, password });
-      const { token } = response.data;
-      if (token) {
-        localStorage.setItem('auth_token', token);
-      }
+      localStorage.setItem('auth_token', response.data.token);
+      localStorage.setItem('username', response.data.username);
+      setError('');
       onClose();
-      navigate('/game');
+      navigate('/lobby');
     } catch (err) {
       setError('ログインに失敗しました。ユーザー名またはパスワードを確認してください。');
     }
