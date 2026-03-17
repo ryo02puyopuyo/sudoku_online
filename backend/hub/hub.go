@@ -127,6 +127,13 @@ func (h *Hub) handleMessage(conn *websocket.Conn, targetRoom *room.Room, player 
 	switch msg.Type {
 	case "new_puzzle":
 		targetRoom.Game.Reset()
+		
+		targetRoom.Mu.Lock()
+		for _, p := range targetRoom.Clients {
+			p.ConsecutiveCorrect = 0
+		}
+		targetRoom.Mu.Unlock()
+		
 		h.broadcastNewGameStarted(targetRoom)
 		h.broadcastBoardState(targetRoom)
 		h.broadcastUserListUpdate(targetRoom)
