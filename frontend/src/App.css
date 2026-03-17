@@ -44,8 +44,8 @@ h1 {
 .sudoku-board {
   border-collapse: collapse;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  margin: 0 auto;        /* 横方向の中央寄せ */
-  display: table;        /* border-collapseとの相性が良い */
+  margin: 0 auto;
+  display: table;
 }
 .new-game-button {
   margin-top: 20px;
@@ -63,7 +63,7 @@ h1 {
   background-color: #218838;
 }
 
-/* --- サイドバーコンテナ --- */
+/* サイドバー */
 .sidebar-container {
   position: fixed;
   top: 15px;
@@ -75,7 +75,7 @@ h1 {
   z-index: 10;
 }
 
-/* --- メンバー一覧のスタイル --- */
+/* メンバー一覧 */
 .user-list-container {
   position: static;
   width: auto;
@@ -154,7 +154,7 @@ h1 {
   font-size: 14px;
 }
 
-/* --- チャット欄のスタイル --- */
+/* チャット欄 */
 .chat-container {
   background-color: white;
   border-radius: 8px;
@@ -213,7 +213,7 @@ h1 {
   background-color: #0056b3;
 }
 
-/* --- 中央のサイドバー開閉ボタンのスタイル --- */
+/* サイドバー開閉ボタン */
 .sidebar-toggle-main-button {
   margin-top: 10px;
   background: none;
@@ -230,7 +230,7 @@ h1 {
   border-color: #bbb;
 }
 
-/* --- スコアボードのスタイル --- */
+/* スコアボード */
 .scoreboard-container {
   display: flex;
   justify-content: center;
@@ -263,7 +263,7 @@ h1 {
   color: #2e7d32;
 }
 
-/* --- チーム選択UIのスタイル --- */
+/* チーム選択UI */
 .team-selector-container {
   margin-bottom: 20px;
   padding: 15px;
@@ -317,36 +317,7 @@ h1 {
   box-shadow: 0 0 10px rgba(46, 125, 50, 0.5);
 }
 
-/* --- ゲーム終了モーダルのスタイル --- */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.modal-content {
-  background: white;
-  padding: 30px 40px;
-  border-radius: 12px;
-  text-align: center;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  animation: fadeIn 0.3s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
-.modal-content h2 {
-  margin-top: 0;
-  font-size: 28px;
-  color: #333;
-}
+/* ゲーム終了モーダル */
 .winner-text {
   font-size: 24px;
   font-weight: bold;
@@ -372,23 +343,22 @@ h1 {
 .modal-button {
   margin-top: 10px;
 }
-/* コンテナ全体を縦並びのFlexboxにする */
+
+/* ランディングページ */
 .landing-container {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  justify-content: space-between; /* これでコンテンツと知らせを上下に分ける */
+  justify-content: space-between;
   align-items: center;
   padding: 40px 20px;
   box-sizing: border-box;
 }
-
-/* 中央のメインコンテンツ */
 .landing-content {
-  flex: 1; /* 余白を埋める */
+  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center; /* 垂直方向の中央 */
+  justify-content: center;
   align-items: center;
 }
 .landing-title {
@@ -423,7 +393,7 @@ h1 {
   background-color: #0056b3;
 }
 
-/* 背景のオーバーレイ */
+/* モーダル共通 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -437,8 +407,6 @@ h1 {
   justify-content: center;
   z-index: 1000;
 }
-
-/* モーダル本体 */
 .modal-content {
   background: #fff;
   border-radius: 16px;
@@ -449,8 +417,6 @@ h1 {
   animation: fadeIn 0.3s ease-out;
   font-family: 'Segoe UI', Roboto, sans-serif;
 }
-
-/* アニメーション */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -461,8 +427,6 @@ h1 {
     transform: translateY(0);
   }
 }
-
-/* 閉じるボタン */
 .close-button {
   position: absolute;
   top: 12px;
@@ -477,15 +441,11 @@ h1 {
 .close-button:hover {
   color: #000;
 }
-
-/* タイトル */
 .modal-content h2 {
   text-align: center;
   margin-bottom: 1.5rem;
   color: #333;
 }
-
-/* エラーメッセージ */
 .error-message {
   color: #e63946;
   background-color: #ffe8e8;
@@ -495,8 +455,6 @@ h1 {
   margin-bottom: 1rem;
   font-size: 0.9rem;
 }
-
-/* 入力欄 */
 .input-group {
   margin-bottom: 1rem;
 }
@@ -519,15 +477,11 @@ h1 {
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
   outline: none;
 }
-
-/* ボタンエリア */
 .modal-actions {
   display: flex;
   justify-content: space-between;
   margin-top: 1.2rem;
 }
-
-/* 新規登録ボタン */
 .register-button {
   flex: 1;
   margin-right: 0.5rem;
@@ -544,8 +498,6 @@ h1 {
   opacity: 0.9;
   transform: scale(1.03);
 }
-
-/* ログインボタン */
 .login-button {
   flex: 1;
   margin-left: 0.5rem;
@@ -562,43 +514,31 @@ h1 {
   opacity: 0.9;
   transform: scale(1.03);
 }
-/* お知らせ欄の調整 */
+
+/* お知らせ欄 */
 .announcement-wrapper {
   width: 100%;
   max-width: 600px;
   margin-top: 40px;
-  /* ▼ 変更点: 背景を「黒の半透明」から「白のほんのり半透明」に変更 */
-  background: rgba(41, 25, 25, 0.1); 
-  /* ▲ これで明るくなります。数値(0.1)を大きくすると白っぽさが増します */
-  
+  background: rgba(41, 25, 25, 0.1);
   padding: 15px 20px;
-  border-radius: 12px; /* 角丸を少し柔らかく */
-  
-  /* ▼ 変更点: 枠線を少し明るく */
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  
-  /* ▼ 追加点: ほんのり影をつけて浮かび上がらせる */
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(5px); /* 背景を少しぼかしてガラスっぽくする（対応ブラウザのみ）*/
+  backdrop-filter: blur(5px);
 }
-
-/* タイトル文字色も調整 */
 .announcement-title {
   font-size: 1rem;
   margin-bottom: 10px;
-  color: #000000; /* タイトルを真っ白に */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3); /* 下線も明るく */
+  color: #000000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
   padding-bottom: 5px;
 }
-
-/* 日付の色を調整 */
 .announcement-date {
-  color: #000000; /* 少し明るめのグレーに */
+  color: #000000;
   white-space: nowrap;
   font-weight: 500;
 }
-
-/* 本文の色を調整 */
 .announcement-text {
-  color: #000000; /* ほぼ白に */
+  color: #000000;
 }

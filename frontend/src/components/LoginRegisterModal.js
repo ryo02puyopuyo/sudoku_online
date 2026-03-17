@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom'; // ★これが必要です
+import { useNavigate } from 'react-router-dom';
 
 export default function LoginRegisterModal({ isOpen, onClose }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const navigate = useNavigate(); // 修正点：追加 ゲームに遷移するために必要
+  const navigate = useNavigate();
 
   if (!isOpen) {
     return null;
@@ -29,25 +29,21 @@ export default function LoginRegisterModal({ isOpen, onClose }) {
   const handleLogin = async () => {
     setError('');
     if (!username || !password) {
-        setError('ユーザー名とパスワードを入力してください。');
-        return;
+      setError('ユーザー名とパスワードを入力してください。');
+      return;
     }
     try {
-        // ★ 変更点：ログインリクエスト
-        const response = await axios.post('/api/login', { username, password });
-        
-        // ★ 変更点：サーバーから返されたトークンを保存
-        const { token } = response.data;
-        if (token) {
-            localStorage.setItem('auth_token', token);
-        }
-        
-        onClose();
-        navigate('/game'); 
+      const response = await axios.post('/api/login', { username, password });
+      const { token } = response.data;
+      if (token) {
+        localStorage.setItem('auth_token', token);
+      }
+      onClose();
+      navigate('/game');
     } catch (err) {
-        setError('ログインに失敗しました。ユーザー名またはパスワードを確認してください。');
+      setError('ログインに失敗しました。ユーザー名またはパスワードを確認してください。');
     }
-};
+  };
 
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) {
@@ -60,7 +56,7 @@ export default function LoginRegisterModal({ isOpen, onClose }) {
       <div className="modal-content">
         <button onClick={onClose} className="close-button">×</button>
         <h2>ログイン / 新規登録</h2>
-        
+
         {error && <p className="error-message">{error}</p>}
 
         <div className="input-group">
@@ -80,4 +76,3 @@ export default function LoginRegisterModal({ isOpen, onClose }) {
     </div>
   );
 }
-

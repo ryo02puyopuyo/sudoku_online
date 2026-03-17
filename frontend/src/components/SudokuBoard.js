@@ -8,10 +8,9 @@ export default function SudokuBoard({ boardState, onCellClick, onNewGameClick })
     onCellClick(r, c, selectedNumber);
   };
 
-const getCellStyle = (cell) => {
+  const getCellStyle = (cell) => {
     let baseStyle = {};
-    
-    // 既存のステータス別スタイル
+
     switch (cell.status) {
       case "fixed":
         baseStyle = { background: "#e9ecef", color: "black", fontWeight: "bold" };
@@ -29,15 +28,13 @@ const getCellStyle = (cell) => {
         baseStyle = { background: "white" };
     }
 
-    // 【修正点】ホットスポット用の装飾を追加
+    // ホットスポットの視覚的強調
     if (cell.isHotSpot) {
-      // まだ入力されていないホットスポットは少し黄色く光らせる
       if (cell.status === "empty") {
-        baseStyle.background = "#fffde7"; 
+        baseStyle.background = "#fffde7";
       }
-      // 強調するための太い枠線（box-shadowを使うと既存のborderを壊しません）
-      baseStyle.boxShadow = "inset 0 0 0 3px #ffd700"; 
-      baseStyle.zIndex = 1; // 枠線を最前面に
+      baseStyle.boxShadow = "inset 0 0 0 3px #ffd700";
+      baseStyle.zIndex = 1;
     }
 
     return baseStyle;

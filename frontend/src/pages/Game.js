@@ -19,10 +19,7 @@ export default function Game() {
   const ws = useRef(null);
 
   useEffect(() => {
-    // ★ 変更点：localStorage からトークンを取得
     const token = localStorage.getItem('auth_token');
-
-    // ★ 変更点：トークンがあればURL末尾に付与
     const wsUrl = token
       ? `${process.env.REACT_APP_WS_URL}?token=${token}`
       : process.env.REACT_APP_WS_URL;
