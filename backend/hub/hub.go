@@ -240,11 +240,11 @@ func (h *Hub) handleMessage(conn *websocket.Conn, targetRoom *room.Room, player 
 
 		// チートコマンド処理 (":cheat <command>" 形式)
 		if strings.HasPrefix(chatText, ":cheat") {
-			if player.Role == "admin" {
-				log.Printf("Admin cheat by %s in room %s", player.Name, targetRoom.ID)
+			if player.Role != "admin" {
+				log.Printf("Non-admin user %s tried to use cheat command in room %s", player.Name, targetRoom.ID)
 				return
 			}
-			log.Printf("%s issued a cheat command: %s in room %s", player.Name, chatText, targetRoom.ID)
+			log.Printf("Admin %s issued a cheat command: %s in room %s", player.Name, chatText, targetRoom.ID)
 			h.handleCheatCommand(conn, targetRoom, player, chatText)
 			return
 		}
