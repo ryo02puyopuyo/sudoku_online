@@ -520,25 +520,50 @@ h1 {
   width: 100%;
   max-width: 600px;
   margin-top: 40px;
-  background: rgba(41, 25, 25, 0.1);
-  padding: 15px 20px;
+  background: white;
+  padding: 20px 25px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(5px);
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
 }
 .announcement-title {
-  font-size: 1rem;
-  margin-bottom: 10px;
-  color: #000000;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-  padding-bottom: 5px;
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+  border-bottom: 2px solid #007bff;
+  padding-bottom: 8px;
+  display: inline-block;
+}
+.announcement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+.announcement-item {
+  display: flex;
+  gap: 15px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  line-height: 1.4;
+}
+.announcement-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 .announcement-date {
-  color: #000000;
+  color: #666;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding-top: 2px;
 }
 .announcement-text {
-  color: #000000;
+  color: #333;
+  font-size: 0.95rem;
 }
