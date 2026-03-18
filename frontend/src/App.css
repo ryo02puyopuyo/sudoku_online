@@ -44,6 +44,8 @@ h1 {
 .sudoku-board {
   border-collapse: collapse;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  margin: 0 auto;
+  display: table;
 }
 .new-game-button {
   margin-top: 20px;
@@ -61,7 +63,7 @@ h1 {
   background-color: #218838;
 }
 
-/* --- サイドバーコンテナ --- */
+/* サイドバー */
 .sidebar-container {
   position: fixed;
   top: 15px;
@@ -73,7 +75,7 @@ h1 {
   z-index: 10;
 }
 
-/* --- メンバー一覧のスタイル --- */
+/* メンバー一覧 */
 .user-list-container {
   position: static;
   width: auto;
@@ -152,7 +154,7 @@ h1 {
   font-size: 14px;
 }
 
-/* --- チャット欄のスタイル --- */
+/* チャット欄 */
 .chat-container {
   background-color: white;
   border-radius: 8px;
@@ -211,7 +213,7 @@ h1 {
   background-color: #0056b3;
 }
 
-/* --- 中央のサイドバー開閉ボタンのスタイル --- */
+/* サイドバー開閉ボタン */
 .sidebar-toggle-main-button {
   margin-top: 10px;
   background: none;
@@ -228,7 +230,7 @@ h1 {
   border-color: #bbb;
 }
 
-/* --- スコアボードのスタイル --- */
+/* スコアボード */
 .scoreboard-container {
   display: flex;
   justify-content: center;
@@ -261,7 +263,7 @@ h1 {
   color: #2e7d32;
 }
 
-/* --- チーム選択UIのスタイル --- */
+/* チーム選択UI */
 .team-selector-container {
   margin-bottom: 20px;
   padding: 15px;
@@ -315,36 +317,7 @@ h1 {
   box-shadow: 0 0 10px rgba(46, 125, 50, 0.5);
 }
 
-/* --- ゲーム終了モーダルのスタイル --- */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.modal-content {
-  background: white;
-  padding: 30px 40px;
-  border-radius: 12px;
-  text-align: center;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  animation: fadeIn 0.3s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
-.modal-content h2 {
-  margin-top: 0;
-  font-size: 28px;
-  color: #333;
-}
+/* ゲーム終了モーダル */
 .winner-text {
   font-size: 24px;
   font-weight: bold;
@@ -369,4 +342,203 @@ h1 {
 .final-score-team.team-2 span { color: #2e7d32; }
 .modal-button {
   margin-top: 10px;
+}
+
+/* ランディングページ */
+.landing-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  justify-content: space-between;
+  align-items: center;
+  padding: 40px 20px;
+  box-sizing: border-box;
+}
+.landing-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.landing-title {
+  font-size: 48px;
+  font-weight: 800;
+  color: #333;
+  margin-bottom: 10px;
+}
+.landing-subtitle {
+  font-size: 18px;
+  color: #666;
+  margin-bottom: 40px;
+}
+.landing-buttons {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.main-action-button {
+  width: 280px;
+  padding: 15px;
+  font-size: 16px;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  background-color: #007bff;
+  color: white;
+}
+.main-action-button:hover {
+  background-color: #0056b3;
+}
+
+/* モーダル共通 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(30, 30, 30, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content {
+  background: #fff;
+  border-radius: 16px;
+  padding: 2rem;
+  width: 360px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  position: relative;
+  animation: fadeIn 0.3s ease-out;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.close-button {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  transition: color 0.2s;
+}
+.close-button:hover {
+  color: #000;
+}
+.modal-content h2 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: #333;
+}
+.error-message {
+  color: #e63946;
+  background-color: #ffe8e8;
+  padding: 0.5rem;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+.input-group {
+  margin-bottom: 1rem;
+}
+.input-group label {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #444;
+  font-weight: 500;
+}
+.input-group input {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-group input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+  outline: none;
+}
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.2rem;
+}
+.register-button {
+  flex: 1;
+  margin-right: 0.5rem;
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  color: white;
+  border: none;
+  padding: 0.6rem;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.2s;
+}
+.register-button:hover {
+  opacity: 0.9;
+  transform: scale(1.03);
+}
+.login-button {
+  flex: 1;
+  margin-left: 0.5rem;
+  background: linear-gradient(135deg, #2196f3, #1565c0);
+  color: white;
+  border: none;
+  padding: 0.6rem;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.2s;
+}
+.login-button:hover {
+  opacity: 0.9;
+  transform: scale(1.03);
+}
+
+/* お知らせ欄 */
+.announcement-wrapper {
+  width: 100%;
+  max-width: 600px;
+  margin-top: 40px;
+  background: rgba(41, 25, 25, 0.1);
+  padding: 15px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(5px);
+}
+.announcement-title {
+  font-size: 1rem;
+  margin-bottom: 10px;
+  color: #000000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  padding-bottom: 5px;
+}
+.announcement-date {
+  color: #000000;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.announcement-text {
+  color: #000000;
 }

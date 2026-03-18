@@ -1,0 +1,62 @@
+# 複数ゲーム卓同時進行
+
+ルーム数: 5（定数で管理、後から変更可能）
+ルームはサーバー起動時に全て生成済み。動的作成・削除はしない。
+
+---
+
+## バックエンド
+
+### [新規] backend/room/room.go
+
+- `Room` 構造体: ID, Name, Game, Clients(WebSocket接続Map)
+- `RoomManager` 構造体: 全ルームを保持
+- `NewRoomManager(count int)` でルームを一括生成
+- ルーム一覧取得（ID, 名前, 参加人数）
+
+### [変更] backend/hub/hub.go
+
+- シングルトン `game` → `RoomManager` に差し替え
+- WebSocket接続時 `?room=<roomID>` でルーム振り分け
+- ブロードキャストをルーム内のみに変更
+- 切断時に該当ルームからクライアント削除
+
+### [変更] backend/main.go
+
+- `game.NewGame()` 廃止 → `room.NewRoomManager(5)` に変更
+- `Hub` に `RoomManager` を渡す
+
+### [変更] backend/models/models.go
+
+- `RoomInfo{ID, Name, PlayerCount}` 型追加
+- `WelcomePayload` に `RoomID`, `RoomName` 追加
+
+### [変更] backend/api/handler.go
+
+- `GET /api/rooms` ルーム一覧API追加
+
+---
+
+## フロントエンド
+
+### [新規] frontend/src/pages/Lobby.js
+
+- `/api/rooms` からルーム一覧取得・表示
+- 各ルームの名前と参加人数を表示
+- ルームクリック → `/game/:roomId` へ遷移
+
+### [変更] frontend/src/pages/Game.js
+
+- URLから `roomId` を取得（`/game/:roomId`）
+- WebSocket接続: `/ws?room=<roomId>`
+- `roomId` 無しはロビーへリダイレクト
+
+### [変更] frontend/src/App.js
+
+- `/lobby` ルート追加
+- `/game` → `/game/:roomId` に変更
+
+### [変更] frontend/src/pages/Landing.js
+
+- 「ゲストとして参加」の遷移先を `/lobby` に変更
+- ログイン後もロビーへ遷移

@@ -1,0 +1,83 @@
+
+追加したい機能
+・チームプレイ（完了）
+・ユーザー登録、呼び出し、DB連携  (完了)
+・チートコマンド実装　（一部実装）
+・privatemessage、teammessage
+・ロビーを立てて、複数ゲーム同時進行
+・ホットスポット3点　（完了）
+
+
+やってること
+・クッキー認証システムがうまくいってるかの確認
+・goのコマンドラインからゲーム情報取得
+
+・docker 起動
+sudo docker compose up -d 
+・docker ダウン
+docker-compose down
+・docker 確認
+sudo docker ps
+・docker 入る (-it 対話モード　、　bash 使うシェル)
+docker exec -it <コンテナ名_or_コンテナID> /bin/bash
+・sql　入る
+mysql -u root -p
+・フロント、バックエンド起動
+cd frontend 
+npm run start:all
+・データベースをブラウザで確認
+http://localhost:8081/
+
+
+git reset --hard <commit_hash>
+git clean -fd
+
+#Render × Supabase で `sqlalche.me/e/20/e3q8` エラー！解決策は Session Pooler！ #PostgreSQL - Qiita
+renderとsupabseがうまく行かなかった原因？　現在はneon
+https://qiita.com/chamasei/items/f37a2f1f185ea574a5c6
+
+リファクタリング
+・不要コメント削除、コード整理済み（2026/03/17）
+・テストコード追加済み（2026/03/17）
+
+----------------------------------------------------------------------
+テスト実行コマンド
+----------------------------------------------------------------------
+■ フロントエンド（Jest + React Testing Library）
+  テストファイル: frontend/src/__tests__/*.test.js
+  
+  ・全テスト実行
+    cd frontend && npm test
+  ・全テスト実行（CI用、watchなし）
+    cd frontend && npx react-scripts test --watchAll=false --forceExit
+  ・特定ファイルのみ実行
+    cd frontend && npx react-scripts test --watchAll=false Chat
+
+■ バックエンド（Go testing）
+  テストファイル: backend/tests/*.go
+  ※ JWT_SECRETの指定が必要（DBテストにはDockerのPostgreSQLが起動している必要あり）
+  
+  ・全テスト実行
+    cd backend && JWT_SECRET=test_secret go test ./tests/ -v
+  ・特定テストのみ実行
+    cd backend && JWT_SECRET=test_secret go test ./tests/ -run TestNewGame -v
+  ・DB未起動時はDBテストのみ自動スキップされる
+
+■ デバッグパネル表示切替
+  frontend/.env に以下を追加すると、Landing画面に通信テスト・SEテストパネルが表示される
+    REACT_APP_SHOW_DEBUG_PANEL=true
+  非表示にするには false にするか、行を削除する
+
+----------------------------------------------------------------------
+【Firefox】初回ボタン押下時に音声再生が遅延する件（2026/03/17）
+----------------------------------------------------------------------
+■ 現象
+  ・ページリロード後、最初のボタンクリック時の通信テスト、と音声再生が
+    約0.5〜1秒ほど遅延する（2回目以降は即座に再生される）
+  ・Chromeでは発生しない
+
+
+
+  リロード時の仕様
+  ゲストの場合　⇒　ロビーに戻る
+  ログインユーザーの場合　⇒　ゲーム画面に戻る

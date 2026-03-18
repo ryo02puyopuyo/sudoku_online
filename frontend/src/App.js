@@ -1,121 +1,38 @@
-import { useEffect, useState, useRef } from "react";
-import SudokuBoard from "./SudokuBoard";
-import UserList from "./UserList";
-import ScoreBoard from "./ScoreBoard";
-import TeamSelector from "./TeamSelector";
-import Chat from "./Chat";
-import ResultModal from "./ResultModal";
-import "./App.css";
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
+import axios from 'axios';
+import Landing from './pages/Landing';
+import Lobby from './pages/Lobby';
+import Game from './pages/Game';
+import './App.css';
+
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+axios.defaults.withCredentials = false;
+
+// リクエスト送信前にlocalStorageからJWTトークンをAuthorizationヘッダーにセット
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 function App() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [myPlayer, setMyPlayer] = useState(null);
-  const [players, setPlayers] = useState([]);
-  const [scores, setScores] = useState({ team1: 0, team2: 0 });
-  const [boardState, setBoardState] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [gameOverResult, setGameOverResult] = useState(null);
-  
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
-  const ws = useRef(null);
-
-  useEffect(() => {
-    const socket = new WebSocket(process.env.REACT_APP_WS_URL);
-    ws.current = socket;
-
-    socket.onopen = () => setIsConnected(true);
-    socket.onclose = () => setIsConnected(false);
-    socket.onerror = (error) => console.error("WebSocket error:", error);
-
-    socket.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
-      switch (msg.type) {
-        case "welcome":
-          setMyPlayer(msg.payload.yourPlayer);
-          setBoardState(msg.payload.boardState);
-          break;
-        case "board_state":
-          setBoardState(msg.payload);
-          break;
-        case "user_list_update":
-          setPlayers(msg.payload.players);
-          setScores(msg.payload.scores);
-          setMyPlayer(currentMyPlayer => {
-            if (!currentMyPlayer) return null;
-            const me = msg.payload.players.find(p => p.id === currentMyPlayer.id);
-            return me ? me : currentMyPlayer;
-          });
-          break;
-        case "new_chat_message":
-          setChatMessages(prevMessages => [...prevMessages, msg.payload]);
-          break;
-        case "game_over":
-          setGameOverResult(msg.payload);
-          break;
-        case "new_game_started":
-          setGameOverResult(null);
-          break;
-        default:
-          break;
-      }
-    };
-
-    return () => {
-      socket.close();
-    };
-  }, []);
-
-  const sendMessage = (type, payload) => {
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ type, payload }));
-    }
-  };
-
-  const handleCellUpdate = (row, col, value) => sendMessage("cell_update", { row, col, value });
-  const requestNewPuzzle = () => sendMessage("new_puzzle", {});
-  const handleChangeTeam = (team) => sendMessage("change_team", { team });
-  const handleChangeName = (name) => sendMessage("change_name", { name });
-  const handleSendMessage = (message) => sendMessage("send_chat_message", { message });
-
   return (
     <div className="app-container">
-      <ResultModal result={gameOverResult} onNewGame={requestNewPuzzle} />
-      
-      {isSidebarOpen && (
-        <div className="sidebar-container">
-          <UserList
-            users={players}
-            myPlayer={myPlayer}
-            onChangeName={handleChangeName}
-          />
-          <Chat messages={chatMessages} onSendMessage={handleSendMessage} />
-        </div>
-      )}
-
-      <div className="game-area">
-        <h1>リアルタイムナンプレ</h1>
-        <ScoreBoard scores={scores} />
-        <TeamSelector myPlayer={myPlayer} onChangeTeam={handleChangeTeam} />
-        {!isConnected && <p>サーバーに接続中...</p>}
-        {boardState ? (
-          <SudokuBoard
-            boardState={boardState}
-            onCellClick={handleCellUpdate}
-            onNewGameClick={requestNewPuzzle}
-          />
-        ) : (
-          isConnected && <p>問題を読み込んでいます...</p>
-        )}
-        
-        <button 
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-          className="sidebar-toggle-main-button"
-        >
-          {isSidebarOpen ? 'チャット/一覧を隠す' : 'チャット/一覧を表示'}
-        </button>
-      </div>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/lobby" element={<Lobby />} />
+        <Route path="/game/:roomId" element={<Game />} />
+      </Routes>
     </div>
   );
 }
+
 export default App;

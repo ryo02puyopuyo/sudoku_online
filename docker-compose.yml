@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # 'db'サービスをPostgreSQLに変更
+  db:
+    image: postgres:15-alpine  # 軽量なalpine版がおすすめ
+    restart: always
+    environment:
+      # PostgreSQL用の環境変数
+      POSTGRES_USER: sudoku_user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: sudoku_db
+    ports:
+      # PostgreSQLのデフォルトポートは5432です
+      - "5432:5432"
+    volumes:
+      # 保存先パスもPostgreSQL用に変更
+      - postgres-data:/var/lib/postgresql/data
+
+  # Adminerはそのまま使えます
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8081:8080"
+
+volumes:
+  postgres-data:
