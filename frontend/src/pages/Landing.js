@@ -14,6 +14,7 @@ export default function Landing() {
   const navigate = useNavigate();
 
   const announcements = [
+    { date: '2026/03/18', content: ' 5個の卓を同時に遊べるようになりました。5コンボ10コンボごとにボーナス点獲得。ホットスポット実装' },
     { date: '2026/01/27', content: ' 無料のデプロイサービスを使っているため、しばらく遊ぶ人がいないと、ゲームの起動に1分ほどかかります' },
     { date: '2026/01/27', content: ' ログインシステム実装、ホットスポット実装' },
     { date: '2025/10/**', content: ' ナンプレバトルβ版を公開しました！' },
